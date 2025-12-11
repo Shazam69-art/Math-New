@@ -4,7 +4,7 @@ import re
 import base64
 import os
 OPENAI_API_KEY = os.getenv('OPENAI_API_KEY')
-MODEL = "gpt-5.1"
+MODEL = "gpt-4o"
 PORT = 5002
 app = Flask(__name__)
 SYSTEM_PROMPT = """You are a PhD-Level Math Teacher analyzing student solutions with **zero tolerance for errors or omissions**.
