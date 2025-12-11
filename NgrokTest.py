@@ -2,11 +2,16 @@ from flask import Flask, render_template_string, request, jsonify, Response
 import openai
 import re
 import base64
+import os
 
-OPENAI_API_KEY = 
-PORT = 5002
+OPENAI_API_KEY = os.getenv('OPENAI_API_KEY')
+if not OPENAI_API_KEY:
+    raise ValueError("OPENAI_API_KEY environment variable is not set.")
+
+PORT = int(os.getenv('PORT', 5002))
+MODEL = "gpt-5.1"
+
 app = Flask(__name__)
-
 SYSTEM_PROMPT = """You are a PhD-Level Math Teacher analyzing student solutions with **zero tolerance for errors or omissions**.
 **STRICT RULES (MANDATORY):**
 1. **READ ALL QUESTION FILES COMPLETELY AND DO NOT MODIFY THEM** – Extract **EVERY** question and subpart (e.g., 1(i), 1(ii), 2(a), etc.), even if the student did not attempt them.
@@ -58,7 +63,6 @@ SYSTEM_PROMPT = """You are a PhD-Level Math Teacher analyzing student solutions 
 - **No "almost correct"** – Either ✓, a **precise error**, or "**Not attempted by student**".
 - **No handwaving** – Justify **every** correction step.
 **FAILURE TO FOLLOW = REJECT THE OUTPUT.**"""
-
 HTML = """<!DOCTYPE html>
 <html>
 <head>
@@ -328,11 +332,9 @@ HTML = """<!DOCTYPE html>
     </script>
 </body>
 </html>"""
-
 @app.route('/')
 def home():
     return render_template_string(HTML)
-
 @app.route('/check')
 def check():
     try:
@@ -341,7 +343,6 @@ def check():
         return jsonify({"status": "ok"})
     except:
         return jsonify({"status": "error"})
-
 @app.route('/analyze', methods=['POST'])
 def analyze():
     try:
@@ -385,15 +386,11 @@ def analyze():
         return Response(generate(), mimetype='text/plain')
     except Exception as e:
         return jsonify({"error": str(e)}), 500
-
 if __name__ == '__main__':
     print("=" * 60)
     print("🎓 MATH ANALYSIS GPT")
     print("=" * 60)
-    print(f"🚀 Server: http://localhost:{PORT}")
+    print(f"🚀 Server: http://0.0.0.0:{PORT}")
     print("💡 Using KaTeX for fast math rendering")
     print("=" * 60)
-    import webbrowser
-    webbrowser.open(f"http://localhost:{PORT}")
     app.run(host='0.0.0.0', port=PORT, debug=False)
-
