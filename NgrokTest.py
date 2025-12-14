@@ -4,7 +4,10 @@ import base64
 import json
 from openai import OpenAI
 from flask_cors import CORS
+import os
 
+for k in ["HTTP_PROXY", "HTTPS_PROXY", "ALL_PROXY"]:
+    os.environ.pop(k, None)
 
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 
