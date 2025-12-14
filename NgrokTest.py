@@ -3,10 +3,14 @@ import os
 import base64
 import json
 from openai import OpenAI
+from flask_cors import CORS
+
 
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 
 app = Flask(__name__)
+CORS(app)
+
 app.config['MAX_CONTENT_LENGTH'] = 50 * 1024 * 1024  # 50MB max file size
 
 HTML_TEMPLATE = '''
