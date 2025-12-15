@@ -44,16 +44,16 @@ HTML_TEMPLATE = '''
         body {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            height: 100vh;
+            min-height: 100vh;
             display: flex;
             justify-content: center;
             align-items: center;
-            overflow: hidden;
+            padding: 20px;
         }
         .container {
             width: 95%;
             max-width: 1200px;
-            height: 95vh;
+            min-height: 95vh;
             background: white;
             border-radius: 20px;
             box-shadow: 0 20px 60px rgba(0,0,0,0.3);
@@ -119,111 +119,171 @@ HTML_TEMPLATE = '''
             border-radius: 12px;
             box-shadow: 0 2px 8px rgba(0,0,0,0.1);
         }
-        .question-block {
+        
+        /* Dropdown Question Styles */
+        .question-dropdown {
             background: white;
-            padding: 0;
-            margin: 20px 0;
+            margin: 15px 0;
             border-radius: 12px;
             box-shadow: 0 2px 12px rgba(0,0,0,0.08);
-            border-left: 5px solid #667eea;
             overflow: hidden;
+            border: 2px solid #e2e8f0;
         }
         .question-header {
-            padding: 15px 25px;
-            background: #f8fafc;
-            border-bottom: 1px solid #e2e8f0;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 18px 25px;
             cursor: pointer;
             display: flex;
             justify-content: space-between;
             align-items: center;
+            transition: all 0.3s;
+            user-select: none;
         }
-        .question-number {
-            color: #667eea;
-            font-weight: 700;
+        .question-header:hover {
+            background: linear-gradient(135deg, #5568d3 0%, #6a3f91 100%);
+        }
+        .question-header-title {
             font-size: 18px;
+            font-weight: 700;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .dropdown-arrow {
+            font-size: 20px;
+            transition: transform 0.3s;
+        }
+        .dropdown-arrow.open {
+            transform: rotate(180deg);
         }
         .question-content {
+            max-height: 0;
+            overflow: hidden;
+            transition: max-height 0.3s ease-out;
+        }
+        .question-content.open {
+            max-height: 5000px;
+            transition: max-height 0.5s ease-in;
+        }
+        .question-inner {
             padding: 25px;
-            display: none;
         }
-        .question-content.active {
-            display: block;
-        }
+        
         .question-text {
             color: #1e293b;
             font-size: 16px;
-            margin-bottom: 15px;
+            margin-bottom: 20px;
             line-height: 1.8;
+            padding: 15px;
+            background: #f1f5f9;
+            border-radius: 8px;
+            border-left: 4px solid #667eea;
         }
         .section-title {
             color: #64748b;
             font-size: 14px;
-            font-weight: 600;
+            font-weight: 700;
             text-transform: uppercase;
-            margin: 15px 0 10px 0;
+            margin: 20px 0 12px 0;
             letter-spacing: 0.5px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .section-title::before {
+            content: '';
+            width: 4px;
+            height: 20px;
+            background: #667eea;
+            border-radius: 2px;
         }
         .student-solution {
             background: #fef3c7;
-            padding: 15px;
+            padding: 20px;
             border-radius: 8px;
-            margin-bottom: 15px;
+            margin-bottom: 20px;
             white-space: pre-wrap;
             line-height: 2;
+            border: 2px solid #fde68a;
         }
-        .solution-step {
-            padding: 10px;
-            line-height: 2.2;
-            border-bottom: 1px solid #fde68a;
-            font-size: 15px;
-        }
-        .solution-step:last-child { border-bottom: none; }
         .error-analysis {
             background: #fee2e2;
-            padding: 15px;
+            padding: 20px;
             border-radius: 8px;
             color: #991b1b;
-            margin-bottom: 15px;
+            margin-bottom: 20px;
             font-weight: 500;
             line-height: 1.8;
+            border: 2px solid #fecaca;
         }
         .correct-solution {
             background: #d1fae5;
-            padding: 15px;
+            padding: 20px;
             border-radius: 8px;
             line-height: 2.2;
             font-size: 15px;
+            border: 2px solid #a7f3d0;
         }
+        
+        /* Practice Paper Styles */
         .practice-paper {
             background: white;
             padding: 30px;
             margin: 30px 0;
             border-radius: 12px;
-            border-left: 5px solid #7c3aed;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+            border: 3px solid #7c3aed;
+        }
+        .practice-header {
+            background: linear-gradient(135deg, #7c3aed 0%, #a855f7 100%);
+            color: white;
+            padding: 20px 30px;
+            margin: -30px -30px 25px -30px;
+            border-radius: 9px 9px 0 0;
         }
         .practice-title {
-            color: #7c3aed;
-            font-size: 22px;
+            font-size: 24px;
             font-weight: 700;
-            margin-bottom: 20px;
+            margin-bottom: 5px;
+        }
+        .practice-subtitle {
+            font-size: 14px;
+            opacity: 0.9;
         }
         .practice-question {
-            margin-bottom: 30px;
-            padding-bottom: 20px;
-            border-bottom: 1px solid #e2e8f0;
+            padding: 20px 0;
+            border-bottom: 2px solid #f3f4f6;
         }
         .practice-question:last-child {
             border-bottom: none;
-            margin-bottom: 0;
-            padding-bottom: 0;
+        }
+        .practice-question-number {
+            color: #7c3aed;
+            font-weight: 700;
+            font-size: 18px;
+            margin-bottom: 12px;
+            display: inline-block;
+            background: #ede9fe;
+            padding: 5px 15px;
+            border-radius: 20px;
+        }
+        .practice-question-text {
+            color: #1e293b;
+            font-size: 16px;
+            line-height: 2;
+            padding-left: 10px;
         }
         .practice-footer {
             margin-top: 30px;
+            padding-top: 20px;
+            border-top: 2px solid #e2e8f0;
             text-align: center;
             color: #64748b;
             font-size: 14px;
-            font-weight: 500;
+            font-weight: 600;
         }
+        
         .file-upload {
             display: flex;
             gap: 10px;
@@ -313,22 +373,27 @@ HTML_TEMPLATE = '''
             color: white;
         }
         .btn-no:hover { background: #dc2626; }
-        /* Math rendering styles */
+        
+        /* Typing cursor */
+        .typing-cursor {
+            display: inline-block;
+            width: 2px;
+            height: 1em;
+            background: #667eea;
+            margin-left: 2px;
+            animation: blink 1s infinite;
+        }
+        @keyframes blink {
+            0%, 49% { opacity: 1; }
+            50%, 100% { opacity: 0; }
+        }
+        
         .MathJax {
             font-size: 1.1em !important;
         }
         mjx-container {
             display: inline-block;
             margin: 0 2px;
-        }
-        .typing {
-            border-right: 2px solid #667eea;
-            animation: blink 0.7s infinite;
-            white-space: pre-wrap;
-        }
-        @keyframes blink {
-            from { border-right-color: #667eea; }
-            to { border-right-color: transparent; }
         }
     </style>
 </head>
@@ -363,6 +428,7 @@ HTML_TEMPLATE = '''
         let uploadedFiles = [];
         let currentView = 'questions';
         let analysisResult = null;
+        let isAnalyzing = false;
 
         document.getElementById('fileInput').addEventListener('change', function(e) {
             const files = Array.from(e.target.files);
@@ -403,23 +469,56 @@ HTML_TEMPLATE = '''
             document.getElementById('startBtn').disabled = uploadedFiles.length === 0;
         }
 
-        function renderMath() {
+        function renderMath(element) {
             if (window.MathJax && window.MathJax.typesetPromise) {
-                window.MathJax.typesetPromise().catch((err) => console.log('MathJax render error:', err));
-            } else if (window.MathJax && window.MathJax.Hub) {
-                window.MathJax.Hub.Queue(["Typeset", window.MathJax.Hub]);
+                window.MathJax.typesetPromise([element]).catch((err) => console.log('MathJax render error:', err));
+            }
+        }
+
+        function toggleDropdown(index) {
+            const content = document.getElementById(`question-content-${index}`);
+            const arrow = document.getElementById(`arrow-${index}`);
+            
+            if (content.classList.contains('open')) {
+                content.classList.remove('open');
+                arrow.classList.remove('open');
+            } else {
+                content.classList.add('open');
+                arrow.classList.add('open');
+            }
+        }
+
+        async function typeText(element, text, speed = 5) {
+            let i = 0;
+            const chunks = text.split(/(\$\$[\s\S]*?\$\$|\$[^\$]+?\$|<br>)/);
+            
+            for (const chunk of chunks) {
+                if (chunk.startsWith('$$') || chunk.startsWith('$')) {
+                    element.innerHTML += chunk;
+                    renderMath(element);
+                } else if (chunk === '<br>') {
+                    element.innerHTML += chunk;
+                } else {
+                    for (const char of chunk) {
+                        element.innerHTML += char;
+                        element.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                        await new Promise(resolve => setTimeout(resolve, speed));
+                    }
+                }
             }
         }
 
         async function startAnalysis() {
-            if (uploadedFiles.length === 0) return;
-
+            if (uploadedFiles.length === 0 || isAnalyzing) return;
+            
+            isAnalyzing = true;
             const chatArea = document.getElementById('chatArea');
             const loadingMsg = document.createElement('div');
             loadingMsg.className = 'message system';
             loadingMsg.innerHTML = '<div class="loading"></div> Analyzing your files...';
             chatArea.appendChild(loadingMsg);
             chatArea.scrollTop = chatArea.scrollHeight;
+
             document.getElementById('startBtn').disabled = true;
 
             const formData = new FormData();
@@ -431,6 +530,7 @@ HTML_TEMPLATE = '''
                     method: 'POST',
                     body: formData
                 });
+
                 const result = await response.json();
                 loadingMsg.remove();
 
@@ -450,52 +550,54 @@ HTML_TEMPLATE = '''
                 errorMsg.innerHTML = `<strong>Error:</strong> ${error.message}`;
                 chatArea.appendChild(errorMsg);
             }
+
             chatArea.scrollTop = chatArea.scrollHeight;
             document.getElementById('startBtn').disabled = false;
-        }
-
-        async function typeText(element, text, speed = 20) {
-            let i = 0;
-            element.innerHTML = '';
-            element.classList.add('typing');
-            while (i < text.length) {
-                element.innerHTML += text.charAt(i);
-                i++;
-                await new Promise(resolve => setTimeout(resolve, speed));
-            }
-            element.classList.remove('typing');
+            isAnalyzing = false;
         }
 
         async function displayAnalysisWithTyping(result) {
             const chatArea = document.getElementById('chatArea');
-            for (const q of result.questions) {
+
+            for (let i = 0; i < result.questions.length; i++) {
+                const q = result.questions[i];
+                
                 const qBlock = document.createElement('div');
-                qBlock.className = 'question-block';
+                qBlock.className = 'question-dropdown';
                 qBlock.innerHTML = `
-                    <div class="question-header" onclick="toggleQuestion(this)">
-                        <div class="question-number">Question ${q.number}</div>
-                        <div class="arrow">▼</div>
+                    <div class="question-header" onclick="toggleDropdown(${i})">
+                        <div class="question-header-title">
+                            <span>📝</span>
+                            <span>Question ${q.number}</span>
+                        </div>
+                        <span class="dropdown-arrow" id="arrow-${i}">▼</span>
                     </div>
-                    <div class="question-content">
-                        <div class="question-text" id="qtext-${q.number}"></div>
-                        <div class="section-title">Student's Solution (Original)</div>
-                        <div class="student-solution" id="sol-${q.number}"></div>
-                        <div class="section-title">Error Analysis</div>
-                        <div class="error-analysis" id="error-${q.number}"></div>
-                        <div class="section-title">Correct Solution</div>
-                        <div class="correct-solution" id="correct-${q.number}"></div>
+                    <div class="question-content" id="question-content-${i}">
+                        <div class="question-inner">
+                            <div class="question-text" id="q-text-${i}"></div>
+                            <div class="section-title">Student's Solution (Original)</div>
+                            <div class="student-solution" id="q-student-${i}"></div>
+                            <div class="section-title">Error Analysis</div>
+                            <div class="error-analysis" id="q-error-${i}"></div>
+                            <div class="section-title">Correct Solution</div>
+                            <div class="correct-solution" id="q-correct-${i}"></div>
+                        </div>
                     </div>
                 `;
                 chatArea.appendChild(qBlock);
 
-                await typeText(document.getElementById(`qtext-${q.number}`), q.question);
-                await typeText(document.getElementById(`sol-${q.number}`), q.student_original);
-                await typeText(document.getElementById(`error-${q.number}`), q.error);
-                await typeText(document.getElementById(`correct-${q.number}`), q.correct_solution);
+                // Open dropdown automatically
+                document.getElementById(`question-content-${i}`).classList.add('open');
+                document.getElementById(`arrow-${i}`).classList.add('open');
 
-                renderMath();
+                // Type each section
+                await typeText(document.getElementById(`q-text-${i}`), q.question, 3);
+                await typeText(document.getElementById(`q-student-${i}`), q.student_original, 3);
+                await typeText(document.getElementById(`q-error-${i}`), q.error, 3);
+                await typeText(document.getElementById(`q-correct-${i}`), q.correct_solution, 3);
             }
 
+            // Show confirmation prompt
             const confirmMsg = document.createElement('div');
             confirmMsg.className = 'confirm-prompt';
             confirmMsg.innerHTML = `
@@ -508,19 +610,6 @@ HTML_TEMPLATE = '''
             `;
             chatArea.appendChild(confirmMsg);
             chatArea.scrollTop = chatArea.scrollHeight;
-        }
-
-        function toggleQuestion(header) {
-            const content = header.nextElementSibling;
-            const arrow = header.querySelector('.arrow');
-            if (content.classList.contains('active')) {
-                content.classList.remove('active');
-                arrow.textContent = '▼';
-            } else {
-                content.classList.add('active');
-                arrow.textContent = '▲';
-                renderMath();
-            }
         }
 
         async function generatePractice() {
@@ -539,6 +628,7 @@ HTML_TEMPLATE = '''
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ analysis: analysisResult })
                 });
+
                 const result = await response.json();
                 loadingMsg.remove();
 
@@ -546,31 +636,35 @@ HTML_TEMPLATE = '''
                     const practiceBlock = document.createElement('div');
                     practiceBlock.className = 'practice-paper';
                     practiceBlock.innerHTML = `
-                        <div class="practice-title">📝 Practice Paper</div>
-                        <div id="practice-content"></div>
+                        <div class="practice-header">
+                            <div class="practice-title">📝 Practice Paper</div>
+                            <div class="practice-subtitle">Practice questions based on areas needing improvement</div>
+                        </div>
+                        <div id="practice-questions-container"></div>
                         <div class="practice-footer">Generated by CAS Educations</div>
                     `;
                     chatArea.appendChild(practiceBlock);
 
-                    const practiceContent = document.getElementById('practice-content');
+                    const container = document.getElementById('practice-questions-container');
+                    
                     for (const pq of result.practice_questions) {
                         const pqDiv = document.createElement('div');
                         pqDiv.className = 'practice-question';
                         pqDiv.innerHTML = `
-                            <div class="question-number">Question ${pq.number}</div>
-                            <div class="question-text" id="pqtext-${pq.number}"></div>
+                            <div class="practice-question-number">Question ${pq.number}</div>
+                            <div class="practice-question-text" id="practice-q-${pq.number}"></div>
                         `;
-                        practiceContent.appendChild(pqDiv);
-                        await typeText(document.getElementById(`pqtext-${pq.number}`), pq.question);
+                        container.appendChild(pqDiv);
+                        
+                        await typeText(document.getElementById(`practice-q-${pq.number}`), pq.question, 3);
                     }
-
-                    renderMath();
                 } else {
                     const noMistakes = document.createElement('div');
                     noMistakes.className = 'message system';
                     noMistakes.innerHTML = '<strong>Great job!</strong> No mistakes found, so no practice paper needed.';
                     chatArea.appendChild(noMistakes);
                 }
+
                 chatArea.scrollTop = chatArea.scrollHeight;
             } catch (error) {
                 loadingMsg.remove();
@@ -639,32 +733,42 @@ def analyze():
 
         prompt = f"""Extract and analyze math problems from the uploaded {"questions" if view == "questions" else "answers"}.
 
-CRITICAL FORMATTING RULES:
-1. Format EVERY mathematical expression using LaTeX with $ for inline math and $$ for display math
-2. For student_original: Extract what the student wrote BUT format ALL math expressions with $LaTeX$ notation
-3. All fields must use proper LaTeX formatting for all mathematical content
+CRITICAL INSTRUCTIONS:
+1. Use the EXACT question numbers from the images (e.g., if image shows "Q.7", use "7" as the number)
+2. Format ALL mathematical expressions using LaTeX with $ for inline math and $$ for display math
+3. For student_original: Extract VERBATIM what the student wrote, but format math with LaTeX
+4. Only flag REAL errors - mistakes include:
+   - Questions left blank/unanswered
+   - Partially correct solutions
+   - Completely incorrect solutions
+   - Mathematical errors in calculations or reasoning
+5. If solution is fully correct, set error to "No error - solution is correct"
 
 Return a JSON array with this exact structure:
-[{{"number": "1", "question": "question text with $LaTeX$ formatting", "student_original": "Student's work with ALL math wrapped in $LaTeX$ - transcribe their work but ensure every mathematical expression is in LaTeX", "error": "one-line error description with $LaTeX$ if needed, or 'No error - solution is correct'", "correct_solution": "Complete step-by-step solution with $LaTeX$ formatting. Each step on a new line separated by <br>"}}]
+[{{
+  "number": "exact_question_number_from_image",
+  "question": "question text with $LaTeX$ formatting",
+  "student_original": "Student's work VERBATIM with ALL math wrapped in $LaTeX$",
+  "error": "Detailed error description with $LaTeX$ if needed, or 'No error - solution is correct'",
+  "correct_solution": "Complete step-by-step solution with $LaTeX$ formatting. Each step on a new line separated by <br>"
+}}]
 
 LaTeX Examples:
-- Fractions: $\\frac{{a}}{{b}}$ or $\\dfrac{{a}}{{b}}$ for display style
+- Fractions: $\\frac{{a}}{{b}}$ or $\\dfrac{{a}}{{b}}$
 - Integrals: $\\int f(x)\\,dx$ or $\\displaystyle\\int f(x)\\,dx$
 - Square roots: $\\sqrt{{x}}$ or $\\sqrt[n]{{x}}$
 - Exponents: $x^2$ or $x^{{2n}}$
-- Trigonometry: $\\sin x$, $\\cos x$, $\\tan x$, $\\sec x$, etc.
+- Trigonometry: $\\sin x$, $\\cos x$, $\\tan x$, $\\sec x$
 - Greek letters: $\\pi$, $\\theta$, $\\alpha$
-- Inverse trig: $\\sin^{{-1}} x$ or $\\arcsin x$ or $\\cos^{{-1}} x$
-- Log: $\\log x$ or $\\ln x$
+- Inverse trig: $\\sin^{{-1}} x$ or $\\arcsin x$
 - Limits: $\\lim_{{x\\to 0}}$
-- Subscripts: $x_1$ or $C_1$
 
 Rules:
-- student_original must be VERBATIM - exactly what student wrote
-- All other text should have proper LaTeX formatting for math
-- Flag only real mathematical errors
+- Use EXACT question numbers from the images
+- student_original must be VERBATIM
+- Flag blank/partial/incorrect solutions as errors
 - In correct_solution, use <br> between steps
-- Each step should be a complete explanation"""
+- Each step should be complete"""
 
         response = client.chat.completions.create(
             model="gpt-5.1",
@@ -677,13 +781,17 @@ Rules:
         )
 
         result_text = response.choices[0].message.content.strip()
+
         if result_text.startswith('```json'):
             result_text = result_text[7:]
         if result_text.endswith('```'):
             result_text = result_text[:-3]
         result_text = result_text.strip()
+
         questions = json.loads(result_text)
+
         return jsonify({'questions': questions})
+
     except Exception as e:
         return jsonify({'error': str(e)})
 
@@ -698,24 +806,32 @@ def generate_practice():
         analysis = data.get('analysis', {})
         questions = analysis.get('questions', [])
 
+        # Filter questions with real errors (blank, partial, or incorrect)
         error_questions = [q for q in questions if 'no error' not in q.get('error', '').lower()]
 
         if not error_questions:
             return jsonify({'practice_questions': []})
 
         client = OpenAI(api_key=api_key)
+
         prompt = f"""Generate practice questions for these problems where students made mistakes:
+
 {json.dumps(error_questions, indent=2)}
 
+CRITICAL INSTRUCTIONS:
+1. Use the EXACT SAME question numbers as the original questions
+2. Create MODIFIED versions of the questions (not identical, but similar concept)
+3. Target the specific errors or concepts the student struggled with
+4. Format ALL math using LaTeX: $x^2$, $\\frac{{a}}{{b}}$, $\\int$, etc.
+
 Return a JSON array with this structure:
-[{{"number": "original_number", "question": "modified question with $LaTeX$ formatting targeting the same concept"}}]
+[{{"number": "exact_original_question_number", "question": "modified question with $LaTeX$ formatting targeting same concept"}}]
 
 Rules:
-- Use the SAME question numbers as originals
-- Create DIFFERENT but similar questions
-- Target the specific error made
-- Format ALL math using LaTeX: $x^2$, $\\frac{{a}}{{b}}$, $\\int$, etc.
-- Use $ for inline math and $$ for display equations"""
+- Use EXACT question numbers from originals (e.g., if original was "7", use "7")
+- Questions should be DIFFERENT but test the SAME concept
+- Use proper LaTeX formatting
+- Target the specific error/weakness shown"""
 
         response = client.chat.completions.create(
             model="gpt-5.1",
@@ -725,13 +841,17 @@ Rules:
         )
 
         result_text = response.choices[0].message.content.strip()
+
         if result_text.startswith('```json'):
             result_text = result_text[7:]
         if result_text.endswith('```'):
             result_text = result_text[:-3]
         result_text = result_text.strip()
+
         practice_questions = json.loads(result_text)
+
         return jsonify({'practice_questions': practice_questions})
+
     except Exception as e:
         return jsonify({'error': str(e)})
 
