@@ -3,17 +3,13 @@ import os
 import base64
 import json
 from openai import OpenAI
-
 app = Flask(__name__)
-app.config['MAX_CONTENT_LENGTH'] = 50 * 1024 * 1024  # 50MB max file size
-
+app.config['MAX_CONTENT_LENGTH'] = 50 * 1024 * 1024 # 50MB max file size
 # ============ NGROK FIX ============
 # This allows ngrok to work properly
 from werkzeug.middleware.proxy_fix import ProxyFix
-
 app.wsgi_app = ProxyFix(app.wsgi_app, x_proto=1, x_host=1)
 # ===================================
-
 HTML_TEMPLATE = '''
 <!DOCTYPE html>
 <html lang="en">
@@ -121,19 +117,34 @@ HTML_TEMPLATE = '''
             border-radius: 12px;
             box-shadow: 0 2px 8px rgba(0,0,0,0.1);
         }
-        .question-block {
+        .accordion {
             background: white;
-            padding: 25px;
-            margin: 20px 0;
+            color: #667eea;
+            cursor: pointer;
+            padding: 18px;
+            width: 100%;
+            text-align: left;
+            border: none;
+            outline: none;
+            transition: 0.4s;
+            font-size: 18px;
+            font-weight: 700;
+            margin-bottom: 10px;
             border-radius: 12px;
             box-shadow: 0 2px 12px rgba(0,0,0,0.08);
-            border-left: 5px solid #667eea;
         }
-        .question-number {
-            color: #667eea;
-            font-weight: 700;
-            font-size: 18px;
-            margin-bottom: 12px;
+        .accordion.active, .accordion:hover {
+            background: #667eea;
+            color: white;
+        }
+        .panel {
+            padding: 0 18px;
+            display: none;
+            background: white;
+            overflow: hidden;
+            border-radius: 12px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 12px rgba(0,0,0,0.08);
         }
         .question-text {
             color: #1e293b;
@@ -181,7 +192,7 @@ HTML_TEMPLATE = '''
             font-size: 15px;
         }
         .practice-paper {
-            background: #ede9fe;
+            background: white;
             padding: 25px;
             margin: 30px 0;
             border-radius: 12px;
@@ -192,6 +203,18 @@ HTML_TEMPLATE = '''
             font-size: 22px;
             font-weight: 700;
             margin-bottom: 20px;
+        }
+        .practice-footer {
+            text-align: center;
+            margin-top: 20px;
+            color: #64748b;
+            font-style: italic;
+        }
+        .question-number {
+            color: #667eea;
+            font-weight: 700;
+            font-size: 18px;
+            margin-bottom: 12px;
         }
         .file-upload {
             display: flex;
@@ -282,7 +305,6 @@ HTML_TEMPLATE = '''
             color: white;
         }
         .btn-no:hover { background: #dc2626; }
-
         /* Math rendering styles */
         .MathJax {
             font-size: 1.1em !important;
@@ -320,12 +342,10 @@ HTML_TEMPLATE = '''
             </div>
         </div>
     </div>
-
     <script>
         let uploadedFiles = [];
         let currentView = 'questions';
         let analysisResult = null;
-
         document.getElementById('fileInput').addEventListener('change', function(e) {
             const files = Array.from(e.target.files);
             files.forEach(file => {
@@ -337,12 +357,10 @@ HTML_TEMPLATE = '''
             document.getElementById('startBtn').disabled = uploadedFiles.length === 0;
             e.target.value = '';
         });
-
         function updateFileDisplay() {
             const chatArea = document.getElementById('chatArea');
             const existingFileMsg = document.getElementById('fileMessage');
             if (existingFileMsg) existingFileMsg.remove();
-
             if (uploadedFiles.length > 0) {
                 const fileMsg = document.createElement('div');
                 fileMsg.id = 'fileMessage';
@@ -358,46 +376,63 @@ HTML_TEMPLATE = '''
                 chatArea.scrollTop = chatArea.scrollHeight;
             }
         }
-
         function removeFile(index) {
             uploadedFiles.splice(index, 1);
             updateFileDisplay();
             document.getElementById('startBtn').disabled = uploadedFiles.length === 0;
         }
-
-        function renderMath() {
+        function renderMath(element) {
             if (window.MathJax && window.MathJax.typesetPromise) {
-                window.MathJax.typesetPromise().catch((err) => console.log('MathJax render error:', err));
+                window.MathJax.typesetPromise([element]).catch((err) => console.log('MathJax render error:', err));
             } else if (window.MathJax && window.MathJax.Hub) {
-                window.MathJax.Hub.Queue(["Typeset", window.MathJax.Hub]);
+                window.MathJax.Hub.Queue(["Typeset", window.MathJax.Hub, element]);
             }
         }
-
+        function typeWriter(element, htmlContent, speed = 5, callback) {
+            let i = 0;
+            element.textContent = '';
+            const interval = setInterval(() => {
+                element.textContent += htmlContent.charAt(i);
+                i++;
+                if (i >= htmlContent.length) {
+                    clearInterval(interval);
+                    element.innerHTML = element.textContent;
+                    renderMath(element);
+                    if (callback) callback();
+                }
+            }, speed);
+        }
+        function typeSectionsSequentially(panel, sections) {
+            let index = 0;
+            function typeNext() {
+                if (index < sections.length) {
+                    const { el, content } = sections[index];
+                    panel.appendChild(el);
+                    typeWriter(el, content, 5, typeNext);
+                    index++;
+                }
+            }
+            typeNext();
+        }
         async function startAnalysis() {
             if (uploadedFiles.length === 0) return;
-
             const chatArea = document.getElementById('chatArea');
             const loadingMsg = document.createElement('div');
             loadingMsg.className = 'message system';
             loadingMsg.innerHTML = '<div class="loading"></div> Analyzing your files...';
             chatArea.appendChild(loadingMsg);
             chatArea.scrollTop = chatArea.scrollHeight;
-
             document.getElementById('startBtn').disabled = true;
-
             const formData = new FormData();
             uploadedFiles.forEach(file => formData.append('files', file));
             formData.append('view', currentView);
-
             try {
                 const response = await fetch('/analyze', {
                     method: 'POST',
                     body: formData
                 });
-
                 const result = await response.json();
                 loadingMsg.remove();
-
                 if (result.error) {
                     const errorMsg = document.createElement('div');
                     errorMsg.className = 'message system';
@@ -414,33 +449,79 @@ HTML_TEMPLATE = '''
                 errorMsg.innerHTML = `<strong>Error:</strong> ${error.message}`;
                 chatArea.appendChild(errorMsg);
             }
-
             chatArea.scrollTop = chatArea.scrollHeight;
             document.getElementById('startBtn').disabled = false;
         }
-
         function displayAnalysis(result) {
             const chatArea = document.getElementById('chatArea');
-
-            result.questions.forEach(q => {
-                const qBlock = document.createElement('div');
-                qBlock.className = 'question-block';
-                qBlock.innerHTML = `
-                    <div class="question-number">Question ${q.number}</div>
-                    <div class="question-text">${q.question}</div>
-
-                    <div class="section-title">Student's Solution (Original)</div>
-                    <div class="student-solution">${q.student_original}</div>
-
-                    <div class="section-title">Error Analysis</div>
-                    <div class="error-analysis">${q.error}</div>
-
-                    <div class="section-title">Correct Solution</div>
-                    <div class="correct-solution">${q.correct_solution}</div>
-                `;
-                chatArea.appendChild(qBlock);
+            result.questions.forEach((q, idx) => {
+                const accordion = document.createElement('button');
+                accordion.className = 'accordion';
+                accordion.textContent = `Question ${q.number}`;
+                accordion.dataset.questionIndex = idx;
+                const panel = document.createElement('div');
+                panel.className = 'panel';
+                chatArea.appendChild(accordion);
+                chatArea.appendChild(panel);
             });
-
+            // Add event listeners for accordions
+            document.querySelectorAll('.accordion').forEach(acc => {
+                acc.addEventListener('click', function() {
+                    this.classList.toggle('active');
+                    const panel = this.nextElementSibling;
+                    if (panel.style.display === 'block') {
+                        panel.style.display = 'none';
+                    } else {
+                        panel.style.display = 'block';
+                        if (!panel.hasChildNodes()) {
+                            const idx = this.dataset.questionIndex;
+                            const q = analysisResult.questions[idx];
+                            const questionTextDiv = document.createElement('div');
+                            questionTextDiv.className = 'question-text';
+                            const studentTitle = document.createElement('div');
+                            studentTitle.className = 'section-title';
+                            studentTitle.textContent = "Student's Solution (Original)";
+                            const studentDiv = document.createElement('div');
+                            studentDiv.className = 'student-solution';
+                            const errorTitle = document.createElement('div');
+                            errorTitle.className = 'section-title';
+                            errorTitle.textContent = "Error Analysis";
+                            const errorDiv = document.createElement('div');
+                            errorDiv.className = 'error-analysis';
+                            const correctTitle = document.createElement('div');
+                            correctTitle.className = 'section-title';
+                            correctTitle.textContent = "Correct Solution";
+                            const correctDiv = document.createElement('div');
+                            correctDiv.className = 'correct-solution';
+                            const sections = [
+                                {el: questionTextDiv, content: q.question},
+                                {el: studentTitle, content: ''}, // No typing for titles
+                                {el: studentDiv, content: q.student_original},
+                                {el: errorTitle, content: ''},
+                                {el: errorDiv, content: q.error},
+                                {el: correctTitle, content: ''},
+                                {el: correctDiv, content: q.correct_solution}
+                            ];
+                            // Append titles without typing
+                            panel.appendChild(questionTextDiv);
+                            panel.appendChild(studentTitle);
+                            panel.appendChild(studentDiv);
+                            panel.appendChild(errorTitle);
+                            panel.appendChild(errorDiv);
+                            panel.appendChild(correctTitle);
+                            panel.appendChild(correctDiv);
+                            // Type the content sections
+                            typeWriter(questionTextDiv, q.question, 5, () => {
+                                typeWriter(studentDiv, q.student_original, 5, () => {
+                                    typeWriter(errorDiv, q.error, 5, () => {
+                                        typeWriter(correctDiv, q.correct_solution, 5);
+                                    });
+                                });
+                            });
+                        }
+                    }
+                });
+            });
             const confirmMsg = document.createElement('div');
             confirmMsg.className = 'confirm-prompt';
             confirmMsg.innerHTML = `
@@ -453,54 +534,64 @@ HTML_TEMPLATE = '''
             `;
             chatArea.appendChild(confirmMsg);
             chatArea.scrollTop = chatArea.scrollHeight;
-
-            // Render all math
-            setTimeout(renderMath, 100);
         }
-
         async function generatePractice() {
             const chatArea = document.getElementById('chatArea');
             const confirmPrompt = document.querySelector('.confirm-prompt');
             if (confirmPrompt) confirmPrompt.remove();
-
             const loadingMsg = document.createElement('div');
             loadingMsg.className = 'message system';
             loadingMsg.innerHTML = '<div class="loading"></div> Generating practice paper...';
             chatArea.appendChild(loadingMsg);
-
             try {
                 const response = await fetch('/generate_practice', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ analysis: analysisResult })
                 });
-
                 const result = await response.json();
                 loadingMsg.remove();
-
                 if (result.practice_questions && result.practice_questions.length > 0) {
                     const practiceBlock = document.createElement('div');
                     practiceBlock.className = 'practice-paper';
-                    practiceBlock.innerHTML = `
-                        <div class="practice-title">📝 Practice Paper</div>
-                        ${result.practice_questions.map(pq => `
-                            <div class="question-block">
-                                <div class="question-number">Question ${pq.number}</div>
-                                <div class="question-text">${pq.question}</div>
-                            </div>
-                        `).join('')}
-                    `;
+                    const titleDiv = document.createElement('div');
+                    titleDiv.className = 'practice-title';
+                    titleDiv.textContent = '📝 Practice Paper';
+                    practiceBlock.appendChild(titleDiv);
+                    let currentQuestionDiv = null;
+                    let sections = [];
+                    result.practice_questions.forEach(pq => {
+                        const qNumberDiv = document.createElement('div');
+                        qNumberDiv.className = 'question-number';
+                        qNumberDiv.textContent = `Question ${pq.number}`;
+                        const qTextDiv = document.createElement('div');
+                        qTextDiv.className = 'question-text';
+                        practiceBlock.appendChild(qNumberDiv);
+                        practiceBlock.appendChild(qTextDiv);
+                        sections.push({el: qTextDiv, content: pq.question});
+                    });
+                    const footerDiv = document.createElement('div');
+                    footerDiv.className = 'practice-footer';
+                    footerDiv.textContent = 'Generated by CAS Educations';
+                    practiceBlock.appendChild(footerDiv);
                     chatArea.appendChild(practiceBlock);
-
-                    // Render math in practice questions
-                    setTimeout(renderMath, 100);
+                    // Type sections sequentially
+                    let index = 0;
+                    function typeNext() {
+                        if (index < sections.length) {
+                            const { el, content } = sections[index];
+                            typeWriter(el, content, 5, typeNext);
+                            index++;
+                        }
+                    }
+                    typeNext();
+                    setTimeout(() => renderMath(practiceBlock), 100);
                 } else {
                     const noMistakes = document.createElement('div');
                     noMistakes.className = 'message system';
                     noMistakes.innerHTML = '<strong>Great job!</strong> No mistakes found, so no practice paper needed.';
                     chatArea.appendChild(noMistakes);
                 }
-
                 chatArea.scrollTop = chatArea.scrollHeight;
             } catch (error) {
                 loadingMsg.remove();
@@ -510,18 +601,15 @@ HTML_TEMPLATE = '''
                 chatArea.appendChild(errorMsg);
             }
         }
-
         function skipPractice() {
             const confirmPrompt = document.querySelector('.confirm-prompt');
             if (confirmPrompt) confirmPrompt.remove();
         }
-
         function showQuestions() {
             currentView = 'questions';
             document.querySelector('.btn-questions').style.opacity = '1';
             document.querySelector('.btn-answers').style.opacity = '0.7';
         }
-
         function showAnswers() {
             currentView = 'answers';
             document.querySelector('.btn-answers').style.opacity = '1';
@@ -531,17 +619,11 @@ HTML_TEMPLATE = '''
 </body>
 </html>
 '''
-
-
 @app.route('/')
 def index():
     return render_template_string(HTML_TEMPLATE)
-
-
 # Set your OpenAI API key here
 OPENAI_API_KEY = os.getenv('OPENAI_API_KEY')
-
-
 @app.route('/analyze', methods=['POST'])
 def analyze():
     try:
@@ -549,15 +631,11 @@ def analyze():
         if not api_key:
             return jsonify(
                 {'error': 'OpenAI API key not configured. Please set the OPENAI_API_KEY environment variable.'})
-
         files = request.files.getlist('files')
         view = request.form.get('view', 'questions')
-
         if not files:
             return jsonify({'error': 'No files uploaded'})
-
         client = OpenAI(api_key=api_key)
-
         # Process files
         file_contents = []
         for file in files:
@@ -572,15 +650,12 @@ def analyze():
                     "type": "text",
                     "text": f"[PDF file: {file.filename} - Content extraction not implemented in this demo]"
                 })
-
         # Analyze with OpenAI
         prompt = f"""Extract and analyze math problems from the uploaded {"questions" if view == "questions" else "answers"}.
-
 CRITICAL FORMATTING RULES:
 1. Format EVERY mathematical expression using LaTeX with $ for inline math and $$ for display math
 2. For student_original: Extract what the student wrote BUT format ALL math expressions with $LaTeX$ notation
 3. All fields must use proper LaTeX formatting for all mathematical content
-
 Return a JSON array with this exact structure:
 [{{
   "number": "1",
@@ -589,7 +664,6 @@ Return a JSON array with this exact structure:
   "error": "one-line error description with $LaTeX$ if needed, or 'No error - solution is correct'",
   "correct_solution": "Complete step-by-step solution with $LaTeX$ formatting. Each step on a new line separated by <br>"
 }}]
-
 LaTeX Examples:
 - Fractions: $\\frac{{a}}{{b}}$ or $\\dfrac{{a}}{{b}}$ for display style
 - Integrals: $\\int f(x)\\,dx$ or $\\displaystyle\\int f(x)\\,dx$
@@ -601,14 +675,12 @@ LaTeX Examples:
 - Log: $\\log x$ or $\\ln x$
 - Limits: $\\lim_{{x\\to 0}}$
 - Subscripts: $x_1$ or $C_1$
-
 Rules:
 - student_original must be VERBATIM - exactly what student wrote
 - All other text should have proper LaTeX formatting for math
 - Flag only real mathematical errors
 - In correct_solution, use <br> between steps
 - Each step should be a complete explanation"""
-
         response = client.chat.completions.create(
             model="gpt-5.1",
             messages=[{
@@ -618,24 +690,17 @@ Rules:
             max_completion_tokens=9000,
             temperature=0.3
         )
-
         result_text = response.choices[0].message.content.strip()
-
         # Parse JSON
         if result_text.startswith('```json'):
             result_text = result_text[7:]
         if result_text.endswith('```'):
             result_text = result_text[:-3]
         result_text = result_text.strip()
-
         questions = json.loads(result_text)
-
         return jsonify({'questions': questions})
-
     except Exception as e:
         return jsonify({'error': str(e)})
-
-
 @app.route('/generate_practice', methods=['POST'])
 def generate_practice():
     try:
@@ -646,64 +711,48 @@ def generate_practice():
         data = request.json
         analysis = data.get('analysis', {})
         questions = analysis.get('questions', [])
-
-        # Filter questions with real errors
+        # Filter questions with real errors (left blank, partially correct, completely incorrect)
         error_questions = [q for q in questions if 'no error' not in q.get('error', '').lower()]
-
         if not error_questions:
             return jsonify({'practice_questions': []})
-
         client = OpenAI(api_key=api_key)
-
         prompt = f"""Generate practice questions for these problems where students made mistakes:
-
 {json.dumps(error_questions, indent=2)}
-
 Return a JSON array with this structure:
 [{{"number": "original_number", "question": "modified question with $LaTeX$ formatting targeting the same concept"}}]
-
 Rules:
 - Use the SAME question numbers as originals
 - Create DIFFERENT but similar questions
 - Target the specific error made
 - Format ALL math using LaTeX: $x^2$, $\\frac{{a}}{{b}}$, $\\int$, etc.
 - Use $ for inline math and $$ for display equations"""
-
         response = client.chat.completions.create(
             model="gpt-5.1",
             messages=[{"role": "user", "content": prompt}],
             max_completion_tokens=2000,
             temperature=0.7
         )
-
         result_text = response.choices[0].message.content.strip()
-
         if result_text.startswith('```json'):
             result_text = result_text[7:]
         if result_text.endswith('```'):
             result_text = result_text[:-3]
         result_text = result_text.strip()
-
         practice_questions = json.loads(result_text)
-
         return jsonify({'practice_questions': practice_questions})
-
     except Exception as e:
         return jsonify({'error': str(e)})
-
-
 if __name__ == '__main__':
     print("\n" + "=" * 60)
     print("🚀 Math OCR Analyzer Starting...")
     print("=" * 60)
     if not OPENAI_API_KEY:
-        print("\n⚠️  WARNING: OpenAI API key not found!")
-        print("   Please set the OPENAI_API_KEY environment variable.\n")
+        print("\n⚠️ WARNING: OpenAI API key not found!")
+        print(" Please set the OPENAI_API_KEY environment variable.\n")
     else:
         print("\n✅ API Key configured")
     print("\n📱 Access the app at: http://localhost:5000")
     print("📱 ngrok URL will also work once you run ngrok!")
     print("=" * 60 + "\n")
-
     # Run with host='0.0.0.0' to accept external connections
     app.run(debug=False, host='0.0.0.0', port=int(os.getenv('PORT', 5000)))
