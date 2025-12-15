@@ -469,9 +469,14 @@ HTML_TEMPLATE = '''
                             panel.appendChild(correctDiv);
 
                             typeWriter(questionDiv, q.question, 10, () => {
+                                renderMath(panel);
                                 typeWriter(studentDiv, q.student_original, 10, () => {
+                                    renderMath(panel);
                                     typeWriter(errorDiv, q.error, 10, () => {
-                                        typeWriter(correctDiv, q.correct_solution, 10);
+                                        renderMath(panel);
+                                        typeWriter(correctDiv, q.correct_solution, 10, () => {
+                                            renderMath(panel);
+                                        });
                                     });
                                 });
                             });
@@ -559,7 +564,7 @@ HTML_TEMPLATE = '''
                             typeWriter(textDivs[index], result.practice_questions[index].question, 10, typeNext);
                             index++;
                         } else {
-                            setTimeout(() => renderMath(practiceBlock), 600);
+                            setTimeout(() => renderMath(practiceBlock), 1000);
                         }
                     }
                     typeNext();
@@ -589,29 +594,35 @@ HTML_TEMPLATE = '''
             const pageWidth = pdf.internal.pageSize.getWidth();
             const pageHeight = pdf.internal.pageSize.getHeight();
             const margin = 15;
+            const pdfWidth = pageWidth - 2 * margin;
+            const pdfHeight = pageHeight - 2 * margin;
 
-            html2canvas(practiceBlock, {
+            const canvas = await html2canvas(practiceBlock, {
                 scale: 2,
                 useCORS: true,
                 backgroundColor: '#ffffff'
-            }).then(canvas => {
-                const imgData = canvas.toDataURL('image/png');
-                const imgHeight = (canvas.height * (pageWidth - 2 * margin)) / canvas.width;
-                let heightLeft = imgHeight;
-                let position = margin;
-
-                pdf.addImage(imgData, 'PNG', margin, position, pageWidth - 2 * margin, imgHeight);
-                heightLeft -= (pageHeight - 2 * margin);
-
-                while (heightLeft > 0) {
-                    position = heightLeft - imgHeight + margin;
-                    pdf.addPage();
-                    pdf.addImage(imgData, 'PNG', margin, position, pageWidth - 2 * margin, imgHeight);
-                    heightLeft -= (pageHeight - 2 * margin);
-                }
-
-                pdf.save('Practice_Paper.pdf');
             });
+
+            const canvasWidth = canvas.width;
+            const canvasHeight = canvas.height;
+            const ratio = pdfWidth / canvasWidth;
+            const totalPdfHeight = canvasHeight * ratio;
+
+            let printedHeight = 0;
+
+            while (printedHeight < totalPdfHeight) {
+                pdf.addPage();
+                const remainingPdfHeight = totalPdfHeight - printedHeight;
+                const currentPdfHeight = Math.min(remainingPdfHeight, pdfHeight);
+
+                const sourceY = printedHeight / ratio;
+                const sourceHeight = currentPdfHeight / ratio;
+
+                pdf.addImage(canvas, 'PNG', margin, margin, pdfWidth, currentPdfHeight, undefined, 'FAST', 0, sourceY, canvasWidth, sourceHeight);
+                printedHeight += currentPdfHeight;
+            }
+
+            pdf.save('Practice_Paper.pdf');
         }
 
         function skipPractice() {
@@ -693,7 +704,7 @@ Return JSON array:
         response = client.chat.completions.create(
             model="gpt-5.1",
             messages=[{"role": "user", "content": [{"type": "text", "text": prompt}] + file_contents}],
-            max_completion_tokens=9000,
+            max_tokens=9000,
             temperature=0.2
         )
         result_text = response.choices[0].message.content.strip()
@@ -727,7 +738,10 @@ def generate_practice():
 
 Return JSON array:
 [
-  {{"number": "USE THE EXACT SAME ORIGINAL NUMBER STRING", "question": "new similar question with full LaTeX formatting"}}
+  {{
+    "number": "USE THE EXACT SAME ORIGINAL NUMBER STRING",
+    "question": "new similar question with full LaTeX formatting"
+  }}
 ]
 
 Rules:
@@ -739,7 +753,7 @@ Rules:
         response = client.chat.completions.create(
             model="gpt-5.1",
             messages=[{"role": "user", "content": prompt}],
-            max_completion_tokens=2000,
+            max_tokens=2000,
             temperature=0.7
         )
         result_text = response.choices[0].message.content.strip()
