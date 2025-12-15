@@ -674,7 +674,7 @@ Rules:
                 "role": "user",
                 "content": [{"type": "text", "text": prompt}] + file_contents
             }],
-            max_tokens=9000,  # Adjusted to valid parameter
+            max_completion_tokens=9000,  # Adjusted to valid parameter
             temperature=0.3
         )
         result_text = response.choices[0].message.content.strip()
@@ -716,7 +716,7 @@ Rules:
         response = client.chat.completions.create(
             model="gpt-5.1",  # Changed to a valid model; adjust as needed
             messages=[{"role": "user", "content": prompt}],
-            max_tokens=2000,
+            max_completion_tokens=2000,
             temperature=0.7
         )
         result_text = response.choices[0].message.content.strip()
