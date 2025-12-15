@@ -3,14 +3,11 @@ import os
 import base64
 import json
 from openai import OpenAI
-import io
-from pdf2image import convert_from_bytes
 
 app = Flask(__name__)
 app.config['MAX_CONTENT_LENGTH'] = 50 * 1024 * 1024  # 50MB max file size
 
 # ============ NGROK FIX ============
-# This allows ngrok to work properly
 from werkzeug.middleware.proxy_fix import ProxyFix
 app.wsgi_app = ProxyFix(app.wsgi_app, x_proto=1, x_host=1)
 # ===================================
@@ -25,8 +22,8 @@ HTML_TEMPLATE = '''
     <script>
         window.MathJax = {
             tex: {
-                inlineMath: [['$', '$'], ['\\(', '\\)']],
-                displayMath: [['$$', '$$'], ['\\[', '\\]']],
+                inlineMath: [['$', '$'], ['\\\\(', '\\\\)']],
+                displayMath: [['$$', '$$'], ['\\\\[', '\\\\]']],
                 processEscapes: true,
                 processEnvironments: true
             },
@@ -122,22 +119,35 @@ HTML_TEMPLATE = '''
             border-radius: 12px;
             box-shadow: 0 2px 8px rgba(0,0,0,0.1);
         }
-        details {
-            margin-bottom: 20px;
+        .question-block {
             background: white;
+            padding: 0;
+            margin: 20px 0;
             border-radius: 12px;
             box-shadow: 0 2px 12px rgba(0,0,0,0.08);
+            border-left: 5px solid #667eea;
+            overflow: hidden;
         }
-        summary {
+        .question-header {
+            padding: 15px 25px;
+            background: #f8fafc;
+            border-bottom: 1px solid #e2e8f0;
             cursor: pointer;
-            padding: 15px 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .question-number {
+            color: #667eea;
             font-weight: 700;
             font-size: 18px;
-            color: #667eea;
-            border-bottom: 1px solid #e2e8f0;
         }
-        .question-block {
-            padding: 20px;
+        .question-content {
+            padding: 25px;
+            display: none;
+        }
+        .question-content.active {
+            display: block;
         }
         .question-text {
             color: #1e293b;
@@ -161,6 +171,13 @@ HTML_TEMPLATE = '''
             white-space: pre-wrap;
             line-height: 2;
         }
+        .solution-step {
+            padding: 10px;
+            line-height: 2.2;
+            border-bottom: 1px solid #fde68a;
+            font-size: 15px;
+        }
+        .solution-step:last-child { border-bottom: none; }
         .error-analysis {
             background: #fee2e2;
             padding: 15px;
@@ -179,10 +196,10 @@ HTML_TEMPLATE = '''
         }
         .practice-paper {
             background: white;
-            padding: 25px;
+            padding: 30px;
             margin: 30px 0;
             border-radius: 12px;
-            box-shadow: 0 2px 12px rgba(0,0,0,0.08);
+            border-left: 5px solid #7c3aed;
         }
         .practice-title {
             color: #7c3aed;
@@ -191,18 +208,21 @@ HTML_TEMPLATE = '''
             margin-bottom: 20px;
         }
         .practice-question {
-            margin-bottom: 25px;
-            padding-bottom: 15px;
+            margin-bottom: 30px;
+            padding-bottom: 20px;
             border-bottom: 1px solid #e2e8f0;
         }
         .practice-question:last-child {
             border-bottom: none;
+            margin-bottom: 0;
+            padding-bottom: 0;
         }
-        .footer {
+        .practice-footer {
+            margin-top: 30px;
             text-align: center;
             color: #64748b;
-            margin-top: 20px;
-            font-style: italic;
+            font-size: 14px;
+            font-weight: 500;
         }
         .file-upload {
             display: flex;
@@ -301,6 +321,15 @@ HTML_TEMPLATE = '''
             display: inline-block;
             margin: 0 2px;
         }
+        .typing {
+            border-right: 2px solid #667eea;
+            animation: blink 0.7s infinite;
+            white-space: pre-wrap;
+        }
+        @keyframes blink {
+            from { border-right-color: #667eea; }
+            to { border-right-color: transparent; }
+        }
     </style>
 </head>
 <body>
@@ -351,6 +380,7 @@ HTML_TEMPLATE = '''
             const chatArea = document.getElementById('chatArea');
             const existingFileMsg = document.getElementById('fileMessage');
             if (existingFileMsg) existingFileMsg.remove();
+
             if (uploadedFiles.length > 0) {
                 const fileMsg = document.createElement('div');
                 fileMsg.id = 'fileMessage';
@@ -381,43 +411,9 @@ HTML_TEMPLATE = '''
             }
         }
 
-        function typeText(element, text, speed = 5, renderInterval = 50) {
-            element.innerHTML = '';
-            let i = 0;
-            function type() {
-                if (i < text.length) {
-                    element.innerHTML += text.charAt(i);
-                    i++;
-                    if (i % renderInterval === 0) renderMath();
-                    setTimeout(type, speed);
-                } else {
-                    renderMath();
-                }
-            }
-            type();
-        }
-
-        async function typeSectionAsync(element, text) {
-            return new Promise(resolve => {
-                element.innerHTML = '';
-                let i = 0;
-                function type() {
-                    if (i < text.length) {
-                        element.innerHTML += text.charAt(i);
-                        i++;
-                        if (i % 50 === 0) renderMath();
-                        setTimeout(type, 5);
-                    } else {
-                        renderMath();
-                        resolve();
-                    }
-                }
-                type();
-            });
-        }
-
         async function startAnalysis() {
             if (uploadedFiles.length === 0) return;
+
             const chatArea = document.getElementById('chatArea');
             const loadingMsg = document.createElement('div');
             loadingMsg.className = 'message system';
@@ -425,9 +421,11 @@ HTML_TEMPLATE = '''
             chatArea.appendChild(loadingMsg);
             chatArea.scrollTop = chatArea.scrollHeight;
             document.getElementById('startBtn').disabled = true;
+
             const formData = new FormData();
             uploadedFiles.forEach(file => formData.append('files', file));
             formData.append('view', currentView);
+
             try {
                 const response = await fetch('/analyze', {
                     method: 'POST',
@@ -435,6 +433,7 @@ HTML_TEMPLATE = '''
                 });
                 const result = await response.json();
                 loadingMsg.remove();
+
                 if (result.error) {
                     const errorMsg = document.createElement('div');
                     errorMsg.className = 'message system';
@@ -442,7 +441,7 @@ HTML_TEMPLATE = '''
                     chatArea.appendChild(errorMsg);
                 } else {
                     analysisResult = result;
-                    await displayAnalysis(result);
+                    await displayAnalysisWithTyping(result);
                 }
             } catch (error) {
                 loadingMsg.remove();
@@ -455,53 +454,48 @@ HTML_TEMPLATE = '''
             document.getElementById('startBtn').disabled = false;
         }
 
-        async function displayAnalysis(result) {
-            const chatArea = document.getElementById('chatArea');
-            for (let q of result.questions) {
-                const detail = document.createElement('details');
-                const summary = document.createElement('summary');
-                summary.textContent = `Question ${q.number}`;
-                detail.appendChild(summary);
-                const content = document.createElement('div');
-                content.className = 'question-block';
-
-                const qText = document.createElement('div');
-                qText.className = 'question-text';
-                content.appendChild(qText);
-
-                const title1 = document.createElement('div');
-                title1.className = 'section-title';
-                title1.textContent = "Student's Solution (Original)";
-                content.appendChild(title1);
-                const studentSol = document.createElement('div');
-                studentSol.className = 'student-solution';
-                content.appendChild(studentSol);
-
-                const title2 = document.createElement('div');
-                title2.className = 'section-title';
-                title2.textContent = "Error Analysis";
-                content.appendChild(title2);
-                const errorAnal = document.createElement('div');
-                errorAnal.className = 'error-analysis';
-                content.appendChild(errorAnal);
-
-                const title3 = document.createElement('div');
-                title3.className = 'section-title';
-                title3.textContent = "Correct Solution";
-                content.appendChild(title3);
-                const correctSol = document.createElement('div');
-                correctSol.className = 'correct-solution';
-                content.appendChild(correctSol);
-
-                detail.appendChild(content);
-                chatArea.appendChild(detail);
-                chatArea.scrollTop = chatArea.scrollHeight;
-
-                await typeSectionAsync(qText, q.question);
-                await typeSectionAsync(studentSol, q.student_original);
-                await typeSectionAsync(errorAnal, q.error);
-                await typeSectionAsync(correctSol, q.correct_solution);
+        async function typeText(element, text, speed = 20) {
+            let i = 0;
+            element.innerHTML = '';
+            element.classList.add('typing');
+            while (i < text.length) {
+                element.innerHTML += text.charAt(i);
+                i++;
+                await new Promise(resolve => setTimeout(resolve, speed));
             }
+            element.classList.remove('typing');
+        }
+
+        async function displayAnalysisWithTyping(result) {
+            const chatArea = document.getElementById('chatArea');
+            for (const q of result.questions) {
+                const qBlock = document.createElement('div');
+                qBlock.className = 'question-block';
+                qBlock.innerHTML = `
+                    <div class="question-header" onclick="toggleQuestion(this)">
+                        <div class="question-number">Question ${q.number}</div>
+                        <div class="arrow">▼</div>
+                    </div>
+                    <div class="question-content">
+                        <div class="question-text" id="qtext-${q.number}"></div>
+                        <div class="section-title">Student's Solution (Original)</div>
+                        <div class="student-solution" id="sol-${q.number}"></div>
+                        <div class="section-title">Error Analysis</div>
+                        <div class="error-analysis" id="error-${q.number}"></div>
+                        <div class="section-title">Correct Solution</div>
+                        <div class="correct-solution" id="correct-${q.number}"></div>
+                    </div>
+                `;
+                chatArea.appendChild(qBlock);
+
+                await typeText(document.getElementById(`qtext-${q.number}`), q.question);
+                await typeText(document.getElementById(`sol-${q.number}`), q.student_original);
+                await typeText(document.getElementById(`error-${q.number}`), q.error);
+                await typeText(document.getElementById(`correct-${q.number}`), q.correct_solution);
+
+                renderMath();
+            }
+
             const confirmMsg = document.createElement('div');
             confirmMsg.className = 'confirm-prompt';
             confirmMsg.innerHTML = `
@@ -516,15 +510,29 @@ HTML_TEMPLATE = '''
             chatArea.scrollTop = chatArea.scrollHeight;
         }
 
+        function toggleQuestion(header) {
+            const content = header.nextElementSibling;
+            const arrow = header.querySelector('.arrow');
+            if (content.classList.contains('active')) {
+                content.classList.remove('active');
+                arrow.textContent = '▼';
+            } else {
+                content.classList.add('active');
+                arrow.textContent = '▲';
+                renderMath();
+            }
+        }
+
         async function generatePractice() {
             const chatArea = document.getElementById('chatArea');
             const confirmPrompt = document.querySelector('.confirm-prompt');
             if (confirmPrompt) confirmPrompt.remove();
+
             const loadingMsg = document.createElement('div');
             loadingMsg.className = 'message system';
             loadingMsg.innerHTML = '<div class="loading"></div> Generating practice paper...';
             chatArea.appendChild(loadingMsg);
-            chatArea.scrollTop = chatArea.scrollHeight;
+
             try {
                 const response = await fetch('/generate_practice', {
                     method: 'POST',
@@ -533,34 +541,30 @@ HTML_TEMPLATE = '''
                 });
                 const result = await response.json();
                 loadingMsg.remove();
+
                 if (result.practice_questions && result.practice_questions.length > 0) {
                     const practiceBlock = document.createElement('div');
                     practiceBlock.className = 'practice-paper';
-                    const title = document.createElement('div');
-                    title.className = 'practice-title';
-                    title.textContent = '📝 Practice Paper';
-                    practiceBlock.appendChild(title);
+                    practiceBlock.innerHTML = `
+                        <div class="practice-title">📝 Practice Paper</div>
+                        <div id="practice-content"></div>
+                        <div class="practice-footer">Generated by CAS Educations</div>
+                    `;
+                    chatArea.appendChild(practiceBlock);
 
-                    for (let pq of result.practice_questions) {
+                    const practiceContent = document.getElementById('practice-content');
+                    for (const pq of result.practice_questions) {
                         const pqDiv = document.createElement('div');
                         pqDiv.className = 'practice-question';
-                        const num = document.createElement('div');
-                        num.className = 'question-number';
-                        num.textContent = `Question ${pq.number}`;
-                        pqDiv.appendChild(num);
-                        const text = document.createElement('div');
-                        text.className = 'question-text';
-                        pqDiv.appendChild(text);
-                        practiceBlock.appendChild(pqDiv);
-                        await typeSectionAsync(text, pq.question);
+                        pqDiv.innerHTML = `
+                            <div class="question-number">Question ${pq.number}</div>
+                            <div class="question-text" id="pqtext-${pq.number}"></div>
+                        `;
+                        practiceContent.appendChild(pqDiv);
+                        await typeText(document.getElementById(`pqtext-${pq.number}`), pq.question);
                     }
 
-                    const footer = document.createElement('div');
-                    footer.className = 'footer';
-                    footer.textContent = 'Generated by CAS Educations';
-                    practiceBlock.appendChild(footer);
-
-                    chatArea.appendChild(practiceBlock);
+                    renderMath();
                 } else {
                     const noMistakes = document.createElement('div');
                     noMistakes.className = 'message system';
@@ -602,7 +606,6 @@ HTML_TEMPLATE = '''
 def index():
     return render_template_string(HTML_TEMPLATE)
 
-# Set your OpenAI API key here
 OPENAI_API_KEY = os.getenv('OPENAI_API_KEY')
 
 @app.route('/analyze', methods=['POST'])
@@ -610,75 +613,70 @@ def analyze():
     try:
         api_key = OPENAI_API_KEY
         if not api_key:
-            return jsonify(
-                {'error': 'OpenAI API key not configured. Please set the OPENAI_API_KEY environment variable.'})
+            return jsonify({'error': 'OpenAI API key not configured. Please set the OPENAI_API_KEY environment variable.'})
+
         files = request.files.getlist('files')
         view = request.form.get('view', 'questions')
+
         if not files:
             return jsonify({'error': 'No files uploaded'})
+
         client = OpenAI(api_key=api_key)
-        # Process files
+
         file_contents = []
         for file in files:
-            file_bytes = file.read()
             if file.filename.lower().endswith(('.png', '.jpg', '.jpeg', '.gif', '.bmp')):
-                encoded = base64.b64encode(file_bytes).decode('utf-8')
+                encoded = base64.b64encode(file.read()).decode('utf-8')
                 file_contents.append({
                     "type": "image_url",
                     "image_url": {"url": f"data:image/jpeg;base64,{encoded}"}
                 })
             elif file.filename.lower().endswith('.pdf'):
-                images = convert_from_bytes(file_bytes)
-                for img in images:
-                    buffered = io.BytesIO()
-                    img.save(buffered, format="JPEG")
-                    encoded = base64.b64encode(buffered.getvalue()).decode('utf-8')
-                    file_contents.append({
-                        "type": "image_url",
-                        "image_url": {"url": f"data:image/jpeg;base64,{encoded}"}
-                    })
-        # Analyze with OpenAI
-        prompt = f"""Extract and analyze math problems from the uploaded {"questions" if view == "questions" else "answers"}. 
-CRITICAL FORMATTING RULES: 
-1. Format EVERY mathematical expression using LaTeX with $ for inline math and $$ for display math 
-2. For student_original: Extract what the student wrote BUT format ALL math expressions with $$ LaTeX $$ notation 
-3. All fields must use proper LaTeX formatting for all mathematical content 
-Return a JSON array with this exact structure: 
-[{{
-  "number": "1", 
-  "question": "question text with $$ LaTeX $$ formatting", 
-  "student_original": "Student's work with ALL math wrapped in $$ LaTeX $$ - transcribe their work but ensure every mathematical expression is in LaTeX", 
-  "error": "one-line error description with $$ LaTeX $$ if needed, or 'No error - solution is correct'", 
-  "correct_solution": "Complete step-by-step solution with $$ LaTeX $$ formatting. Each step on a new line separated by <br>" 
-}}] 
-LaTeX Examples: 
-- Fractions: $$ \\frac{{a}}{{b}} $$ or $$ \\dfrac{{a}}{{b}} $$ for display style 
-- Integrals: $$ \\int f(x)\\,dx $$ or $$ \\displaystyle\\int f(x)\\,dx $$ 
-- Square roots: $$ \\sqrt{{x}} $$ or $$ \\sqrt[n]{{x}} $$ 
-- Exponents: $$ x^2 $$ or $$ x^{{2n}} $$ 
-- Trigonometry: $$ \\sin x $$, $$ \\cos x $$, $$ \\tan x $$, $$ \\sec x $$, etc. 
-- Greek letters: $$ \\pi $$, $$ \\theta $$, $$ \\alpha $$ 
-- Inverse trig: $$ \\sin^{{-1}} x $$ or $$ \\arcsin x $$ or $$ \\cos^{{-1}} x $$ 
-- Log: $$ \\log x $$ or $$ \\ln x $$ 
-- Limits: $$ \\lim_{{x\\to 0}} $$ 
-- Subscripts: $$ x_1 $$ or $$ C_1 $$ 
-Rules: 
-- student_original must be VERBATIM - exactly what student wrote 
-- All other text should have proper LaTeX formatting for math 
-- Flag only real mathematical errors 
-- In correct_solution, use <br> between steps 
+                file_contents.append({
+                    "type": "text",
+                    "text": f"[PDF file: {file.filename} - Content extraction not implemented in this demo]"
+                })
+
+        prompt = f"""Extract and analyze math problems from the uploaded {"questions" if view == "questions" else "answers"}.
+
+CRITICAL FORMATTING RULES:
+1. Format EVERY mathematical expression using LaTeX with $ for inline math and $$ for display math
+2. For student_original: Extract what the student wrote BUT format ALL math expressions with $LaTeX$ notation
+3. All fields must use proper LaTeX formatting for all mathematical content
+
+Return a JSON array with this exact structure:
+[{{"number": "1", "question": "question text with $LaTeX$ formatting", "student_original": "Student's work with ALL math wrapped in $LaTeX$ - transcribe their work but ensure every mathematical expression is in LaTeX", "error": "one-line error description with $LaTeX$ if needed, or 'No error - solution is correct'", "correct_solution": "Complete step-by-step solution with $LaTeX$ formatting. Each step on a new line separated by <br>"}}]
+
+LaTeX Examples:
+- Fractions: $\\frac{{a}}{{b}}$ or $\\dfrac{{a}}{{b}}$ for display style
+- Integrals: $\\int f(x)\\,dx$ or $\\displaystyle\\int f(x)\\,dx$
+- Square roots: $\\sqrt{{x}}$ or $\\sqrt[n]{{x}}$
+- Exponents: $x^2$ or $x^{{2n}}$
+- Trigonometry: $\\sin x$, $\\cos x$, $\\tan x$, $\\sec x$, etc.
+- Greek letters: $\\pi$, $\\theta$, $\\alpha$
+- Inverse trig: $\\sin^{{-1}} x$ or $\\arcsin x$ or $\\cos^{{-1}} x$
+- Log: $\\log x$ or $\\ln x$
+- Limits: $\\lim_{{x\\to 0}}$
+- Subscripts: $x_1$ or $C_1$
+
+Rules:
+- student_original must be VERBATIM - exactly what student wrote
+- All other text should have proper LaTeX formatting for math
+- Flag only real mathematical errors
+- In correct_solution, use <br> between steps
 - Each step should be a complete explanation"""
+
         response = client.chat.completions.create(
-            model="gpt-5.1",  # Changed to a valid model; adjust as needed
+            model="gpt-5.1",
             messages=[{
                 "role": "user",
                 "content": [{"type": "text", "text": prompt}] + file_contents
             }],
-            max_completion_tokens=9000,  # Adjusted to valid parameter
+            max_completion_tokens=9000,
             temperature=0.3
         )
+
         result_text = response.choices[0].message.content.strip()
-        # Parse JSON
         if result_text.startswith('```json'):
             result_text = result_text[7:]
         if result_text.endswith('```'):
@@ -694,31 +692,38 @@ def generate_practice():
     try:
         api_key = OPENAI_API_KEY
         if not api_key:
-            return jsonify(
-                {'error': 'OpenAI API key not configured. Please set the OPENAI_API_KEY environment variable.'})
+            return jsonify({'error': 'OpenAI API key not configured. Please set the OPENAI_API_KEY environment variable.'})
+
         data = request.json
         analysis = data.get('analysis', {})
         questions = analysis.get('questions', [])
-        # Filter questions with real errors (including partial, blank, incorrect)
+
         error_questions = [q for q in questions if 'no error' not in q.get('error', '').lower()]
+
         if not error_questions:
             return jsonify({'practice_questions': []})
+
         client = OpenAI(api_key=api_key)
-        prompt = f"""Generate practice questions for these problems where students made mistakes: {json.dumps(error_questions, indent=2)} 
-Return a JSON array with this structure: 
-[{{"number": "original_number", "question": "modified question with $LaTeX$ formatting targeting the same concept"}}] 
-Rules: 
-- Use the SAME question numbers as originals 
-- Create DIFFERENT but similar questions 
-- Target the specific error made 
-- Format ALL math using LaTeX: $x^2$, $\\frac{{a}}{{b}}$, $\\int$, etc. 
+        prompt = f"""Generate practice questions for these problems where students made mistakes:
+{json.dumps(error_questions, indent=2)}
+
+Return a JSON array with this structure:
+[{{"number": "original_number", "question": "modified question with $LaTeX$ formatting targeting the same concept"}}]
+
+Rules:
+- Use the SAME question numbers as originals
+- Create DIFFERENT but similar questions
+- Target the specific error made
+- Format ALL math using LaTeX: $x^2$, $\\frac{{a}}{{b}}$, $\\int$, etc.
 - Use $ for inline math and $$ for display equations"""
+
         response = client.chat.completions.create(
-            model="gpt-5.1",  # Changed to a valid model; adjust as needed
+            model="gpt-5.1",
             messages=[{"role": "user", "content": prompt}],
             max_completion_tokens=2000,
             temperature=0.7
         )
+
         result_text = response.choices[0].message.content.strip()
         if result_text.startswith('```json'):
             result_text = result_text[7:]
@@ -735,12 +740,11 @@ if __name__ == '__main__':
     print("🚀 Math OCR Analyzer Starting...")
     print("=" * 60)
     if not OPENAI_API_KEY:
-        print("\n⚠️ WARNING: OpenAI API key not found!")
-        print(" Please set the OPENAI_API_KEY environment variable.\n")
+        print("\n⚠️  WARNING: OpenAI API key not found!")
+        print("   Please set the OPENAI_API_KEY environment variable.\n")
     else:
         print("\n✅ API Key configured")
     print("\n📱 Access the app at: http://localhost:5000")
     print("📱 ngrok URL will also work once you run ngrok!")
     print("=" * 60 + "\n")
-    # Run with host='0.0.0.0' to accept external connections
     app.run(debug=False, host='0.0.0.0', port=int(os.getenv('PORT', 5000)))
