@@ -1294,7 +1294,7 @@ def download_practice_pdf():
 Use EXACT question numbers and format math with LaTeX. Return JSON: [{{"number": "X", "question": "..."}}]"""
 
         response = client.chat.completions.create(
-            model="gpt-4o",
+            model="gpt-5.1",
             messages=[{"role": "user", "content": prompt}],
             max_completion_tokens=2000,
             temperature=0.7
