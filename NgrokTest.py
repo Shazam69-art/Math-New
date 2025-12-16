@@ -1372,7 +1372,7 @@ Use EXACT question numbers and format math with LaTeX. Return JSON: [{{"number":
         for pq in practice_questions:
             story.append(Paragraph(f"Question {pq['number']}", question_number_style))
             # Remove LaTeX formatting for PDF (simple text version)
-            question_text = pq['question'].replace(', '').replace('\\', '')
+            question_text = pq['question'].replace('$', '').replace('\\\\', '').replace('\\', '')
             story.append(Paragraph(question_text, question_text_style))
             story.append(Spacer(1, 0.3*inch))
         
