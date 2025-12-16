@@ -2,3 +2,4 @@ Flask==3.0.0
 Werkzeug==3.0.1
 openai>=1.40.0
 gunicorn
+reportlab>=4.0.0
