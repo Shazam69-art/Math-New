@@ -1162,38 +1162,38 @@ def handle_login():
         # 2. Save to JSON file
         def save_login():
             try:
-        # CAPTURE REQUEST DATA HERE (before thread)
-        ip_address = request.remote_addr or 'Unknown'
-        user_agent = request.headers.get('User-Agent', 'Unknown')[:100]
-        current_time = datetime.utcnow().isoformat()
-        
-        login_data = {
-            'username': username,
-            'timestamp': current_time,
-            'ip': ip_address,
-            'user_agent': user_agent
-        }
-        
-        # Load existing logins or create new file
-        if os.path.exists(LOG_FILE):
-            with open(LOG_FILE, 'r') as f:
-                try:
-                    logins = json.load(f)
-                except:
+                # CAPTURE REQUEST DATA HERE (before thread)
+                ip_address = request.remote_addr or 'Unknown'
+                user_agent = request.headers.get('User-Agent', 'Unknown')[:100]
+                current_time = datetime.utcnow().isoformat()
+                
+                login_data = {
+                    'username': username,
+                    'timestamp': current_time,
+                    'ip': ip_address,
+                    'user_agent': user_agent
+                }
+                
+                # Load existing logins or create new file
+                if os.path.exists(LOG_FILE):
+                    with open(LOG_FILE, 'r') as f:
+                        try:
+                            logins = json.load(f)
+                        except:
+                            logins = []
+                else:
                     logins = []
-        else:
-            logins = []
-        
-        # Add new login
-        logins.append(login_data)
-        
-        # Save back to file
-        with open(LOG_FILE, 'w') as f:
-            json.dump(logins, f, indent=2)
-        
-        print(f"✅ Login saved to {LOG_FILE}: {username}")
-    except Exception as e:
-        print(f"⚠️ File save failed: {e}")
+                
+                # Add new login
+                logins.append(login_data)
+                
+                # Save back to file
+                with open(LOG_FILE, 'w') as f:
+                    json.dump(logins, f, indent=2)
+                
+                print(f"✅ Login saved to {LOG_FILE}: {username}")
+            except Exception as e:
+                print(f"⚠️ File save failed: {e}")
         
         # Run in background thread
         threading.Thread(target=save_login, daemon=True).start()
