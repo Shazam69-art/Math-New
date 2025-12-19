@@ -1,4 +1,4 @@
-from flask import Flask, render_template_string, request, jsonify, make_response
+from flask import Flask, render_template_string, request, jsonify, make_response, session, redirect
 import os
 import base64
 import json
@@ -8,26 +8,23 @@ from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib.units import inch
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, PageBreak
 from reportlab.lib.enums import TA_CENTER
-import psycopg2
-from psycopg2.extras import RealDictCursor
+from datetime import datetime
+import threading
 
 
 app = Flask(__name__)
-
-def get_db():
-    # Get DATABASE_URL and strip any whitespace/newlines
-    database_url = os.environ.get("DATABASE_URL", "").strip()
-    
-    if not database_url:
-        raise ValueError("DATABASE_URL environment variable is not set")
-    
-    return psycopg2.connect(
-        database_url,
-        sslmode="require"
-    )
-
 app.config['MAX_CONTENT_LENGTH'] = 50 * 1024 * 1024  # 50MB max file size
 
+# Enable sessions for login persistence
+app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'dev-key-change-in-production')
+from flask_session import Session
+app.config['SESSION_TYPE'] = 'filesystem'
+app.config['SESSION_FILE_DIR'] = '/tmp/flask_sessions'
+os.makedirs(app.config['SESSION_FILE_DIR'], exist_ok=True)
+Session(app)
+
+# Define log file path - will be created automatically
+LOG_FILE = '/tmp/login_logs.json'
 
 # ============ NGROK FIX ============
 from werkzeug.middleware.proxy_fix import ProxyFix
@@ -241,40 +238,67 @@ LOGIN_HTML = '''
             appleBtn.style.display = appleToggle.classList.contains('active') ? 'flex' : 'none';
         });
 
-        async function loginWithCredentials() {
+        function loginWithCredentials() {
     const username = document.getElementById('username').value;
     const password = document.getElementById('password').value;
-
-    const res = await fetch('/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username, password })
-    });
-
-    const data = await res.json();
-
-    if (data.success) {
-        localStorage.setItem('userEmailPrefix', username);
-        window.location.href = '/main';
-    } else {
-        alert(data.error);
+    
+    if (!username) {
+        alert('Please enter a username');
+        return;
     }
+    
+    fetch('/api/login', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({
+            username: username,
+            password: password
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            const emailPrefix = username.split('@')[0] || 'User';
+            localStorage.setItem('userEmailPrefix', emailPrefix);
+            window.location.href = '/main';
+        } else {
+            alert('Login failed: ' + data.message);
+        }
+    });
 }
 
-
-        function loginWithGoogle() {
-            const username = document.getElementById('username').value || 'user@example.com';
-            const emailPrefix = username.split('@')[0] || 'User';
-            localStorage.setItem('userEmailPrefix', emailPrefix);
+function loginWithGoogle() {
+    const username = document.getElementById('username').value || 'google_user';
+    fetch('/api/login', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({username: username, provider: 'google'})
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            localStorage.setItem('userEmailPrefix', username);
             window.location.href = '/main';
         }
+    });
+}
 
-        function loginWithApple() {
-            const username = document.getElementById('username').value || 'user@example.com';
-            const emailPrefix = username.split('@')[0] || 'User';
-            localStorage.setItem('userEmailPrefix', emailPrefix);
+function loginWithApple() {
+    const username = document.getElementById('username').value || 'apple_user';
+    fetch('/api/login', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({username: username, provider: 'apple'})
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            localStorage.setItem('userEmailPrefix', username);
             window.location.href = '/main';
         }
+    });
+}
+        
     </script>
 </body>
 </html>
@@ -307,7 +331,7 @@ MAIN_HTML = '''
     </script>
     <script src="https://polyfill.io/v3/polyfill.min.js?features=es6"></script>
     <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.2/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script src="https://html2canvas.hertzen.com/dist/html2canvas.min.js"></script>
     <style>
         * {
@@ -565,8 +589,6 @@ MAIN_HTML = '''
             border-radius: 8px;
             box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
             border: 1px solid #e5e7eb;
-            max-width: 100%;
-            box-sizing: border-box;
         }
         .practice-header {
             margin-bottom: 20px;
@@ -587,7 +609,6 @@ MAIN_HTML = '''
             padding: 15px 0;
             border-bottom: 1px solid #f3f4f6;
             margin-bottom: 15px;
-            page-break-inside: avoid;
         }
         .practice-question:last-child {
             border-bottom: none;
@@ -612,6 +633,9 @@ MAIN_HTML = '''
             padding-top: 15px;
             border-top: 1px solid #e5e7eb;
             text-align: center;
+            color: #6b7280;
+            font-size: 13px;
+            font-weight: 500;
         }
         .confirm-prompt {
             background: #fef3c7;
@@ -682,41 +706,9 @@ MAIN_HTML = '''
             display: inline-flex;
             align-items: center;
             gap: 8px;
-            transition: all 0.2s;
         }
-        .download-btn:hover:not(:disabled) {
+        .download-btn:hover {
             background: #2563eb;
-        }
-        .download-btn:disabled {
-            background: #cbd5e1;
-            cursor: not-allowed;
-        }
-        @media print {
-            .practice-paper {
-                background: white;
-                box-shadow: none;
-                border: none;
-                padding: 0;
-                margin: 0;
-                width: 100%;
-            }
-            .practice-header {
-                margin-bottom: 20px;
-                padding-bottom: 10px;
-                border-bottom: 1px solid #e5e7eb;
-            }
-            .practice-question {
-                page-break-inside: avoid;
-                margin-bottom: 20px;
-            }
-            .practice-question-number {
-                font-size: 18px;
-                margin-bottom: 10px;
-            }
-            .practice-question-text {
-                font-size: 16px;
-                line-height: 1.6;
-            }
         }
     </style>
 </head>
@@ -941,7 +933,7 @@ MAIN_HTML = '''
                 Would you like to generate a practice paper for the questions with mistakes?
                 <div class="confirm-buttons">
                     <button class="btn-yes" onclick="generatePractice()">Yes, Generate</button>
-                    <button class="btn-no" onclick="skipPractice()">No, Thanks</button>
+                    <button class="btn btn-no" onclick="skipPractice()">No, Thanks</button>
                 </div>
             `;
             chatArea.appendChild(confirmMsg);
@@ -968,7 +960,7 @@ MAIN_HTML = '''
             chatArea.appendChild(loadingMsg);
 
             try {
-                console.log('Sending to /generate_practice:', analysisResult);
+                console.log('Sending to /generate_practice:', analysisResult); // Debug log
 
                 const response = await fetch('/generate_practice', {
                     method: 'POST',
@@ -1044,65 +1036,14 @@ MAIN_HTML = '''
         }
 
         async function downloadPracticePaper() {
-            try {
-                // Check if jsPDF is loaded
-                if (typeof window.jspdf === 'undefined' || typeof window.jspdf.jsPDF === 'undefined') {
-                    throw new Error('PDF library not loaded. Please refresh the page and try again.');
-                }
+            const practicePaper = document.getElementById('practice-paper');
+            const pdf = new jsPDF('p', 'mm', 'a4');
+            const imgData = await html2canvas(practicePaper, { scale: 2 });
+            const imgWidth = pdf.internal.pageSize.getWidth();
+            const imgHeight = (imgData.height * imgWidth) / imgData.width;
 
-                const { jsPDF } = window.jspdf;
-                const practicePaper = document.getElementById('practice-paper');
-
-                if (!practicePaper) {
-                    throw new Error('Practice paper element not found.');
-                }
-
-                // Show loading state
-                const originalButtonText = document.querySelector('.download-btn').innerHTML;
-                document.querySelector('.download-btn').innerHTML = '<span class="loading"></span> Preparing PDF...';
-                document.querySelector('.download-btn').disabled = true;
-
-                // Create PDF
-                const pdf = new jsPDF('p', 'mm', 'a4');
-
-                // Convert to canvas with proper scaling
-                const canvas = await html2canvas(practicePaper, {
-                    scale: 2,
-                    logging: true,
-                    useCORS: true,
-                    allowTaint: true,
-                    backgroundColor: '#ffffff'
-                });
-
-                // Calculate dimensions
-                const imgWidth = pdf.internal.pageSize.getWidth();
-                const imgHeight = (canvas.height * imgWidth) / canvas.width;
-
-                // Add to PDF
-                pdf.addImage(canvas, 'PNG', 0, 0, imgWidth, imgHeight);
-
-                // Save PDF
-                pdf.save('math-practice-paper.pdf');
-
-                // Restore button
-                document.querySelector('.download-btn').innerHTML = originalButtonText;
-                document.querySelector('.download-btn').disabled = false;
-
-            } catch (error) {
-                console.error('PDF generation error:', error);
-                const chatArea = document.getElementById('chatArea');
-                const errorMsg = document.createElement('div');
-                errorMsg.className = 'message system';
-                errorMsg.innerHTML = `<strong>Error:</strong> Failed to generate PDF: ${error.message}`;
-                chatArea.appendChild(errorMsg);
-                chatArea.scrollTop = chatArea.scrollHeight;
-
-                // Restore button if error occurs
-                if (document.querySelector('.download-btn')) {
-                    document.querySelector('.download-btn').innerHTML = '📥 Download as PDF';
-                    document.querySelector('.download-btn').disabled = false;
-                }
-            }
+            pdf.addImage(imgData, 'PNG', 0, 0, imgWidth, imgHeight);
+            pdf.save('practice-paper.pdf');
         }
     </script>
 </body>
@@ -1116,32 +1057,10 @@ def index():
 
 @app.route('/main')
 def main():
+    # Check if user is logged in
+    if not session.get('logged_in'):
+        return redirect('/')  # Send back to login if not logged in
     return render_template_string(MAIN_HTML)
-
-@app.route('/login', methods=['POST'])
-def login():
-    data = request.json
-    username = data.get('username')
-    password = data.get('password')
-
-    if not username or not password:
-        return jsonify({"success": False, "error": "Missing credentials"})
-
-    conn = get_db()
-    cur = conn.cursor()
-
-    cur.execute("""
-        INSERT INTO users (username, password)
-        VALUES (%s, %s)
-        ON CONFLICT (username) DO NOTHING
-    """, (username, password))
-
-    conn.commit()
-    cur.close()
-    conn.close()
-
-    return jsonify({"success": True})
-
 
 @app.route('/analyze', methods=['POST'])
 def analyze():
@@ -1224,26 +1143,162 @@ def analyze():
         print(f"Analysis error: {str(e)}")
         return jsonify({'error': f'An error occurred: {str(e)}'}), 500
 
-@app.route('/init_db')
-def init_db():
-    conn = get_db()
-    cur = conn.cursor()
+# ============ LOGIN API ============
+@app.route('/api/login', methods=['POST'])
+def handle_login():
+    """Save login to file and create session"""
+    try:
+        data = request.json
+        username = data.get('username', '').strip()
+        
+        if not username:
+            return jsonify({'success': False, 'message': 'Username required'}), 400
+        
+        # 1. Create user session (persists on Render)
+        session['user'] = username
+        session['logged_in'] = True
+        session['login_time'] = datetime.utcnow().isoformat()
+        
+        # 2. Save to JSON file
+        def save_login():
+            try:
+                login_data = {
+                    'username': username,
+                    'timestamp': datetime.utcnow().isoformat(),
+                    'ip': request.remote_addr or 'Unknown',
+                    'user_agent': request.headers.get('User-Agent', 'Unknown')[:100]
+                }
+                
+                # Load existing logins or create new file
+                if os.path.exists(LOG_FILE):
+                    with open(LOG_FILE, 'r') as f:
+                        try:
+                            logins = json.load(f)
+                        except:
+                            logins = []
+                else:
+                    logins = []
+                
+                # Add new login
+                logins.append(login_data)
+                
+                # Save back to file
+                with open(LOG_FILE, 'w') as f:
+                    json.dump(logins, f, indent=2)
+                
+                print(f"✅ Login saved to {LOG_FILE}: {username}")
+            except Exception as e:
+                print(f"⚠️ File save failed: {e}")
+        
+        # Run in background thread
+        threading.Thread(target=save_login, daemon=True).start()
+        
+        return jsonify({
+            'success': True,
+            'message': 'Login successful',
+            'user': username
+        })
+        
+    except Exception as e:
+        return jsonify({'success': False, 'message': str(e)}), 500
 
-    cur.execute("""
-    CREATE TABLE IF NOT EXISTS users (
-        id SERIAL PRIMARY KEY,
-        username TEXT UNIQUE NOT NULL,
-        password TEXT NOT NULL,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-    );
-    """)
+# ============ VIEW LOGS ============
+@app.route('/view-logs')
+def view_logs():
+    """View all saved logins"""
+    if os.path.exists(LOG_FILE):
+        with open(LOG_FILE, 'r') as f:
+            logins = json.load(f)
+        
+        # Create HTML table
+        html = '''
+        <!DOCTYPE html>
+        <html>
+        <head><title>Login Logs</title>
+        <style>
+            body { font-family: Arial; padding: 20px; }
+            table { border-collapse: collapse; width: 100%; margin-top: 20px; }
+            th, td { border: 1px solid #ddd; padding: 12px; text-align: left; }
+            th { background-color: #667eea; color: white; }
+            tr:nth-child(even) { background-color: #f2f2f2; }
+        </style>
+        </head>
+        <body>
+            <h1>🔐 Login Logs (Total: ''' + str(len(logins)) + ''')</h1>
+            <table>
+                <tr><th>#</th><th>Username</th><th>Timestamp</th><th>IP Address</th><th>User Agent</th></tr>
+        '''
+        
+        for i, login in enumerate(reversed(logins), 1):
+            html += f'''
+                <tr>
+                    <td>{i}</td>
+                    <td><strong>{login['username']}</strong></td>
+                    <td>{login['timestamp']}</td>
+                    <td>{login['ip']}</td>
+                    <td>{login['user_agent'][:50]}...</td>
+                </tr>
+            '''
+        
+        html += '''
+            </table>
+            <p style="margin-top: 20px;">
+                <a href="/download-logs">📥 Download JSON</a> | 
+                <a href="/">🏠 Back to Login</a>
+            </p>
+        </body>
+        </html>
+        '''
+        return html
+    return "<h1>No logins yet</h1>"
 
-    conn.commit()
-    cur.close()
-    conn.close()
+# ============ DOWNLOAD LOGS ============
+@app.route('/download-logs')
+def download_logs():
+    """Download logs as JSON file"""
+    if os.path.exists(LOG_FILE):
+        with open(LOG_FILE, 'r') as f:
+            data = f.read()
+        response = make_response(data)
+        response.headers['Content-Type'] = 'application/json'
+        response.headers['Content-Disposition'] = 'attachment; filename=math_ocr_logins.json'
+        return response
+    return "No logins yet", 404
 
-    return "✅ Database initialized"
-
+# ============ TEST LOGIN ============
+@app.route('/test-login-page')
+def test_login_page():
+    """Simple page to test login"""
+    return '''
+    <html><body style="padding: 40px;">
+    <h2>Test Login System</h2>
+    <input id="username" placeholder="Enter username" value="test_user">
+    <button onclick="login()">Test Login</button>
+    <div id="result" style="margin-top: 20px;"></div>
+    <script>
+    async function login() {
+        const username = document.getElementById('username').value;
+        const result = document.getElementById('result');
+        result.innerHTML = 'Logging in...';
+        
+        const response = await fetch('/api/login', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({username: username})
+        });
+        
+        const data = await response.json();
+        if (data.success) {
+            result.innerHTML = `✅ Login successful!<br>
+                                User: ${data.user}<br>
+                                <a href="/view-logs">View All Logs</a>`;
+        } else {
+            result.innerHTML = `❌ Failed: ${data.message}`;
+        }
+    }
+    </script>
+    </body></html>
+    '''
 
 @app.route('/generate_practice', methods=['POST'])
 def generate_practice():
@@ -1292,6 +1347,7 @@ def generate_practice():
         )
 
         result_text = response.choices[0].message.content.strip()
+
         if result_text.startswith('```json'):
             result_text = result_text[7:]
         if result_text.endswith('```'):
@@ -1309,10 +1365,6 @@ def generate_practice():
     except Exception as e:
         print(f"Generate practice error: {str(e)}")
         return jsonify({'error': f'An unexpected error occurred: {str(e)}'}), 500
-
-  
-
-
 
 if __name__ == '__main__':
     print("\n" + "=" * 60)
