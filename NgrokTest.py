@@ -131,6 +131,14 @@ LOGIN_HTML = '''
         .btn-apple:hover {
             background: #1f2937;
         }
+        .login-submit {
+            background: #667eea;
+            color: white;
+            margin-top: 10px;
+        }
+        .login-submit:hover {
+            background: #5a6cd4;
+        }
         .toggle-container {
             margin-top: 20px;
             text-align: center;
@@ -176,7 +184,7 @@ LOGIN_HTML = '''
             <h1>📐 Math OCR Analyzer</h1>
             <p>Log in to analyze your math problems</p>
         </div>
-        <form class="login-form">
+        <form class="login-form" onsubmit="event.preventDefault(); loginWithCredentials();">
             <div class="input-group">
                 <label for="username">Username</label>
                 <i>👤</i>
@@ -187,7 +195,9 @@ LOGIN_HTML = '''
                 <i>🔒</i>
                 <input type="password" id="password" placeholder="Enter your password" required>
             </div>
+            <button type="submit" class="btn login-submit">Login</button>
         </form>
+        <div style="margin: 15px 0; text-align: center; color: #6b7280; font-size: 14px;">OR</div>
         <div class="login-buttons">
             <button class="btn btn-google" onclick="loginWithGoogle()">
                 <span>G</span>
@@ -213,6 +223,13 @@ LOGIN_HTML = '''
             appleToggle.classList.toggle('active');
             appleBtn.style.display = appleToggle.classList.contains('active') ? 'flex' : 'none';
         });
+
+        function loginWithCredentials() {
+            const username = document.getElementById('username').value || 'user@example.com';
+            const emailPrefix = username.split('@')[0];
+            localStorage.setItem('userEmailPrefix', emailPrefix);
+            window.location.href = '/main';
+        }
 
         function loginWithGoogle() {
             const username = document.getElementById('username').value || 'user@example.com';
@@ -446,25 +463,25 @@ MAIN_HTML = '''
             transition: max-height 0.5s ease-in;
         }
         .question-inner {
-            padding: 20px;
+            padding: 25px;
             background: #ffffff;
         }
         .question-text {
             color: #1f2937;
-            font-size: 15px;
-            margin-bottom: 15px;
-            line-height: 1.7;
-            padding: 12px;
+            font-size: 17px; /* Increased font size */
+            margin-bottom: 20px;
+            line-height: 1.8;
+            padding: 15px;
             background: #f9fafb;
-            border-radius: 6px;
+            border-radius: 8px;
             border-left: 3px solid #667eea;
         }
         .section-title {
             color: #6b7280;
-            font-size: 13px;
+            font-size: 15px; /* Increased font size */
             font-weight: 600;
             text-transform: uppercase;
-            margin: 15px 0 10px 0;
+            margin: 20px 0 15px 0;
             letter-spacing: 0.5px;
             display: flex;
             align-items: center;
@@ -479,32 +496,36 @@ MAIN_HTML = '''
         }
         .student-solution {
             background: #fef3c7;
-            padding: 15px;
-            border-radius: 6px;
-            margin-bottom: 15px;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
             white-space: pre-wrap;
-            line-height: 1.8;
+            line-height: 1.9;
+            font-size: 16px; /* Increased font size */
             border: 1px solid #fde68a;
-            font-size: 14px;
         }
         .error-analysis {
             background: #fee2e2;
-            padding: 15px;
-            border-radius: 6px;
+            padding: 20px;
+            border-radius: 8px;
             color: #991b1b;
-            margin-bottom: 15px;
+            margin-bottom: 20px;
             font-weight: 500;
-            line-height: 1.7;
+            line-height: 1.9;
+            font-size: 16px; /* Increased font size */
             border: 1px solid #fecaca;
-            font-size: 14px;
         }
         .correct-solution {
             background: #d1fae5;
-            padding: 15px;
-            border-radius: 6px;
+            padding: 20px;
+            border-radius: 8px;
             line-height: 1.9;
-            font-size: 14px;
+            font-size: 16px; /* Increased font size */
             border: 1px solid #a7f3d0;
+            margin-bottom: 20px;
+        }
+        .correct-solution p {
+            margin-bottom: 10px;
         }
         .practice-paper {
             background: #ffffff;
@@ -532,9 +553,11 @@ MAIN_HTML = '''
         .practice-question {
             padding: 15px 0;
             border-bottom: 1px solid #f3f4f6;
+            margin-bottom: 15px;
         }
         .practice-question:last-child {
             border-bottom: none;
+            margin-bottom: 0;
         }
         .practice-question-number {
             color: #667eea;
@@ -545,9 +568,10 @@ MAIN_HTML = '''
         }
         .practice-question-text {
             color: #1f2937;
-            font-size: 15px;
+            font-size: 16px;
             line-height: 1.8;
             padding-left: 5px;
+            margin-bottom: 15px;
         }
         .practice-footer {
             margin-top: 20px;
@@ -609,7 +633,7 @@ MAIN_HTML = '''
             50%, 100% { opacity: 0; }
         }
         .MathJax {
-            font-size: 1.1em !important;
+            font-size: 1.2em !important;
         }
         mjx-container {
             display: inline-block;
@@ -658,11 +682,13 @@ MAIN_HTML = '''
         </div>
     </div>
     <script>
-        const emailPrefix = localStorage.getItem('userEmailPrefix') || 'User';
-        document.getElementById('welcomeMessage').textContent = `Welcome, ${emailPrefix}!`;
-
         let uploadedFiles = [];
         let isAnalyzing = false;
+        let analysisResult = null; // Global variable to store analysis result
+
+        // Set welcome message from localStorage
+        const emailPrefix = localStorage.getItem('userEmailPrefix') || 'User';
+        document.getElementById('welcomeMessage').textContent = `Welcome, ${emailPrefix}!`;
 
         document.getElementById('fileInput').addEventListener('change', function(e) {
             const files = Array.from(e.target.files);
@@ -764,6 +790,10 @@ MAIN_HTML = '''
                     body: formData
                 });
 
+                if (!response.ok) {
+                    throw new Error(`Server error: ${response.status}`);
+                }
+
                 const result = await response.json();
                 loadingMsg.remove();
 
@@ -773,6 +803,7 @@ MAIN_HTML = '''
                     errorMsg.innerHTML = `<strong>Error:</strong> ${result.error}`;
                     chatArea.appendChild(errorMsg);
                 } else {
+                    analysisResult = result; // Store the result globally
                     await displayAnalysisWithTyping(result);
                 }
             } catch (error) {
@@ -817,15 +848,26 @@ MAIN_HTML = '''
                 `;
                 chatArea.appendChild(qBlock);
 
+                // Open dropdown automatically
                 document.getElementById(`question-content-${i}`).classList.add('open');
                 document.getElementById(`arrow-${i}`).classList.add('open');
 
+                // Type each section with improved formatting
                 await typeText(document.getElementById(`q-text-${i}`), q.question, 3);
                 await typeText(document.getElementById(`q-student-${i}`), q.student_original, 3);
                 await typeText(document.getElementById(`q-error-${i}`), q.error, 3);
-                await typeText(document.getElementById(`q-correct-${i}`), q.correct_solution, 3);
+
+                // Format correct solution with line breaks
+                const correctSolutionElement = document.getElementById(`q-correct-${i}`);
+                const steps = q.correct_solution.split('<br>').filter(step => step.trim() !== '');
+                for (const step of steps) {
+                    const p = document.createElement('p');
+                    correctSolutionElement.appendChild(p);
+                    await typeText(p, step, 3);
+                }
             }
 
+            // Show confirmation prompt
             const confirmMsg = document.createElement('div');
             confirmMsg.className = 'confirm-prompt';
             confirmMsg.innerHTML = `
@@ -841,6 +883,15 @@ MAIN_HTML = '''
         }
 
         async function generatePractice() {
+            if (!analysisResult) {
+                const chatArea = document.getElementById('chatArea');
+                const errorMsg = document.createElement('div');
+                errorMsg.className = 'message system';
+                errorMsg.innerHTML = '<strong>Error:</strong> No analysis result found. Please run the analysis first.';
+                chatArea.appendChild(errorMsg);
+                return;
+            }
+
             const chatArea = document.getElementById('chatArea');
             const confirmPrompt = document.querySelector('.confirm-prompt');
             if (confirmPrompt) confirmPrompt.remove();
@@ -856,6 +907,10 @@ MAIN_HTML = '''
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ analysis: analysisResult })
                 });
+
+                if (!response.ok) {
+                    throw new Error(`Server error: ${response.status}`);
+                }
 
                 const result = await response.json();
                 loadingMsg.remove();
@@ -1006,11 +1061,14 @@ def analyze():
             result_text = result_text[:-3]
         result_text = result_text.strip()
 
-        questions = json.loads(result_text)
-        return jsonify({'questions': questions})
+        try:
+            questions = json.loads(result_text)
+            return jsonify({'questions': questions})
+        except json.JSONDecodeError:
+            return jsonify({'error': 'Failed to parse OpenAI response as JSON.'}), 500
 
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        return jsonify({'error': f'An error occurred: {str(e)}'}), 500
 
 @app.route('/generate_practice', methods=['POST'])
 def generate_practice():
@@ -1057,61 +1115,14 @@ def generate_practice():
             result_text = result_text[:-3]
         result_text = result_text.strip()
 
-        practice_questions = json.loads(result_text)
-        return jsonify({'practice_questions': practice_questions})
+        try:
+            practice_questions = json.loads(result_text)
+            return jsonify({'practice_questions': practice_questions})
+        except json.JSONDecodeError:
+            return jsonify({'error': 'Failed to parse practice questions response as JSON.'}), 500
 
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
-
-@app.route('/download_practice_pdf', methods=['POST'])
-def download_practice_pdf():
-    try:
-        data = request.json
-        practice_questions = data.get('practice_questions', [])
-
-        # Create a PDF document
-        doc = SimpleDocTemplate("practice_paper.pdf", pagesize=letter)
-        styles = getSampleStyleSheet()
-        elements = []
-
-        # Title
-        title_style = ParagraphStyle(
-            name='Title',
-            fontSize=18,
-            leading=22,
-            alignment=TA_CENTER,
-            spaceAfter=20
-        )
-        elements.append(Paragraph("📝 Practice Paper", title_style))
-        elements.append(Paragraph("Practice questions based on areas needing improvement", styles['Normal']))
-        elements.append(Spacer(1, 0.5 * inch))
-
-        # Add questions
-        for q in practice_questions:
-            question_style = ParagraphStyle(
-                name='Question',
-                fontSize=14,
-                leading=18,
-                spaceAfter=10
-            )
-            elements.append(Paragraph(f"Question {q['number']}: {q['question']}", question_style))
-            elements.append(Spacer(1, 0.2 * inch))
-
-        # Build the PDF
-        doc.build(elements)
-
-        # Send the PDF as a downloadable file
-        with open("practice_paper.pdf", "rb") as f:
-            pdf_data = f.read()
-
-        response = make_response(pdf_data)
-        response.headers['Content-Type'] = 'application/pdf'
-        response.headers['Content-Disposition'] = 'attachment; filename=practice_paper.pdf'
-
-        return response
-
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        return jsonify({'error': f'An error occurred: {str(e)}'}), 500
 
 if __name__ == '__main__':
     print("\n" + "=" * 60)
