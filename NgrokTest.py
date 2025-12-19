@@ -1,7 +1,7 @@
 from flask import Flask, render_template_string, request, jsonify
 import os
 import base64
-import json 
+import json
 from openai import OpenAI
 
 app = Flask(__name__)
@@ -10,15 +10,231 @@ app.config['MAX_CONTENT_LENGTH'] = 50 * 1024 * 1024  # 50MB max file size
 # ============ NGROK FIX ============
 from werkzeug.middleware.proxy_fix import ProxyFix
 app.wsgi_app = ProxyFix(app.wsgi_app, x_proto=1, x_host=1)
-# ===================================
 
-HTML_TEMPLATE = '''
+# ============ HTML TEMPLATES ============
+LOGIN_HTML = '''
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Math OCR Analyzer - Login</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Inter', sans-serif;
+        }
+        body {
+            background: #ffffff;
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+        .login-container {
+            width: 100%;
+            max-width: 400px;
+            background: #ffffff;
+            border-radius: 12px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.08);
+            padding: 40px;
+            text-align: center;
+        }
+        .login-header {
+            margin-bottom: 30px;
+        }
+        .login-header h1 {
+            font-size: 24px;
+            font-weight: 700;
+            color: #1f2937;
+            margin-bottom: 8px;
+        }
+        .login-header p {
+            color: #6b7280;
+            font-size: 14px;
+        }
+        .login-form {
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+            margin-bottom: 24px;
+        }
+        .input-group {
+            position: relative;
+            text-align: left;
+        }
+        .input-group label {
+            display: block;
+            margin-bottom: 6px;
+            color: #374151;
+            font-size: 14px;
+            font-weight: 500;
+        }
+        .input-group input {
+            width: 100%;
+            padding: 12px 16px 12px 40px;
+            border: 1px solid #d1d5db;
+            border-radius: 8px;
+            font-size: 14px;
+            transition: border 0.2s;
+        }
+        .input-group input:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+        .input-group i {
+            position: absolute;
+            left: 12px;
+            top: 36px;
+            color: #9ca3af;
+            font-size: 16px;
+        }
+        .login-buttons {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+        .btn {
+            padding: 12px 20px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 600;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+        }
+        .btn-google {
+            background: #ffffff;
+            color: #374151;
+            border: 1px solid #d1d5db;
+        }
+        .btn-google:hover {
+            background: #f9fafb;
+        }
+        .btn-apple {
+            background: #000000;
+            color: #ffffff;
+        }
+        .btn-apple:hover {
+            background: #1f2937;
+        }
+        .toggle-container {
+            margin-top: 20px;
+            text-align: center;
+        }
+        .toggle {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            color: #6b7280;
+            font-size: 14px;
+        }
+        .toggle-switch {
+            width: 40px;
+            height: 20px;
+            background: #e5e7eb;
+            border-radius: 10px;
+            position: relative;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+        .toggle-switch.active {
+            background: #10b981;
+        }
+        .toggle-switch::after {
+            content: '';
+            width: 16px;
+            height: 16px;
+            background: #ffffff;
+            border-radius: 50%;
+            position: absolute;
+            top: 2px;
+            left: 2px;
+            transition: transform 0.2s;
+        }
+        .toggle-switch.active::after {
+            transform: translateX(20px);
+        }
+    </style>
+</head>
+<body>
+    <div class="login-container">
+        <div class="login-header">
+            <h1>📐 Math OCR Analyzer</h1>
+            <p>Log in to analyze your math problems</p>
+        </div>
+        <form class="login-form">
+            <div class="input-group">
+                <label for="username">Username</label>
+                <i>👤</i>
+                <input type="text" id="username" placeholder="Enter your username" required>
+            </div>
+            <div class="input-group">
+                <label for="password">Password</label>
+                <i>🔒</i>
+                <input type="password" id="password" placeholder="Enter your password" required>
+            </div>
+        </form>
+        <div class="login-buttons">
+            <button class="btn btn-google" onclick="loginWithGoogle()">
+                <span>G</span>
+                Continue with Google
+            </button>
+            <button class="btn btn-apple" onclick="loginWithApple()" id="appleBtn" style="display: none;">
+                <span>🍎</span>
+                Continue with Apple
+            </button>
+        </div>
+        <div class="toggle-container">
+            <span class="toggle">
+                Enable Apple Login
+                <div class="toggle-switch" id="appleToggle"></div>
+            </span>
+        </div>
+    </div>
+    <script>
+        const appleToggle = document.getElementById('appleToggle');
+        const appleBtn = document.getElementById('appleBtn');
+
+        appleToggle.addEventListener('click', () => {
+            appleToggle.classList.toggle('active');
+            appleBtn.style.display = appleToggle.classList.contains('active') ? 'flex' : 'none';
+        });
+
+        function loginWithGoogle() {
+            const username = document.getElementById('username').value || 'user';
+            const emailPrefix = username.split('@')[0];
+            localStorage.setItem('userEmailPrefix', emailPrefix);
+            window.location.href = '/main';
+        }
+
+        function loginWithApple() {
+            const username = document.getElementById('username').value || 'user';
+            const emailPrefix = username.split('@')[0];
+            localStorage.setItem('userEmailPrefix', emailPrefix);
+            window.location.href = '/main';
+        }
+    </script>
+</body>
+</html>
+'''
+
+MAIN_HTML = '''
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Math OCR Analyzer</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <script>
         window.MathJax = {
             tex: {
@@ -40,10 +256,14 @@ HTML_TEMPLATE = '''
     <script src="https://polyfill.io/v3/polyfill.min.js?features=es6"></script>
     <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
     <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; }
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Inter', sans-serif;
+        }
         body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            background: #ffffff;
             min-height: 100vh;
             display: flex;
             justify-content: center;
@@ -54,50 +274,35 @@ HTML_TEMPLATE = '''
             width: 95%;
             max-width: 1200px;
             min-height: 95vh;
-            background: white;
-            border-radius: 20px;
-            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            background: #ffffff;
+            border-radius: 12px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
             display: flex;
             flex-direction: column;
             overflow: hidden;
         }
         .header {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
             padding: 20px 30px;
             display: flex;
             justify-content: space-between;
             align-items: center;
+            border-bottom: 1px solid #e5e7eb;
         }
-        .header h1 { font-size: 24px; font-weight: 600; }
-        .header-buttons {
-            display: flex;
-            gap: 10px;
+        .header h1 {
+            font-size: 20px;
+            font-weight: 700;
+            color: #1f2937;
         }
-        .btn {
-            padding: 10px 20px;
-            border: none;
-            border-radius: 8px;
-            cursor: pointer;
-            font-size: 14px;
-            font-weight: 600;
-            transition: all 0.3s;
+        .welcome-message {
+            font-size: 16px;
+            color: #6b7280;
+            margin-left: 10px;
         }
-        .btn-questions {
-            background: white;
-            color: #667eea;
-        }
-        .btn-questions:hover { transform: translateY(-2px); box-shadow: 0 4px 12px rgba(0,0,0,0.2); }
-        .btn-answers {
-            background: #fbbf24;
-            color: #78350f;
-        }
-        .btn-answers:hover { transform: translateY(-2px); box-shadow: 0 4px 12px rgba(251,191,36,0.4); }
         .chat-area {
             flex: 1;
             overflow-y: auto;
             padding: 30px;
-            background: #f8fafc;
+            background: #ffffff;
         }
         .message {
             margin-bottom: 20px;
@@ -108,182 +313,11 @@ HTML_TEMPLATE = '''
             to { opacity: 1; transform: translateY(0); }
         }
         .message.system {
-            background: #e0e7ff;
+            background: #f3f4f6;
             padding: 15px 20px;
-            border-radius: 12px;
-            border-left: 4px solid #667eea;
-        }
-        .message.user {
-            background: white;
-            padding: 15px 20px;
-            border-radius: 12px;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-        }
-        
-        /* Dropdown Question Styles */
-        .question-dropdown {
-            background: white;
-            margin: 15px 0;
-            border-radius: 12px;
-            box-shadow: 0 2px 12px rgba(0,0,0,0.08);
-            overflow: hidden;
-            border: 2px solid #e2e8f0;
-        }
-        .question-header {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-            padding: 18px 25px;
-            cursor: pointer;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            transition: all 0.3s;
-            user-select: none;
-        }
-        .question-header:hover {
-            background: linear-gradient(135deg, #5568d3 0%, #6a3f91 100%);
-        }
-        .question-header-title {
-            font-size: 18px;
-            font-weight: 700;
-            display: flex;
-            align-items: center;
-            gap: 10px;
-        }
-        .dropdown-arrow {
-            font-size: 20px;
-            transition: transform 0.3s;
-        }
-        .dropdown-arrow.open {
-            transform: rotate(180deg);
-        }
-        .question-content {
-            max-height: 0;
-            overflow: hidden;
-            transition: max-height 0.3s ease-out;
-        }
-        .question-content.open {
-            max-height: 5000px;
-            transition: max-height 0.5s ease-in;
-        }
-        .question-inner {
-            padding: 25px;
-        }
-        
-        .question-text {
-            color: #1e293b;
-            font-size: 16px;
-            margin-bottom: 20px;
-            line-height: 1.8;
-            padding: 15px;
-            background: #f1f5f9;
             border-radius: 8px;
             border-left: 4px solid #667eea;
         }
-        .section-title {
-            color: #64748b;
-            font-size: 14px;
-            font-weight: 700;
-            text-transform: uppercase;
-            margin: 20px 0 12px 0;
-            letter-spacing: 0.5px;
-            display: flex;
-            align-items: center;
-            gap: 8px;
-        }
-        .section-title::before {
-            content: '';
-            width: 4px;
-            height: 20px;
-            background: #667eea;
-            border-radius: 2px;
-        }
-        .student-solution {
-            background: #fef3c7;
-            padding: 20px;
-            border-radius: 8px;
-            margin-bottom: 20px;
-            white-space: pre-wrap;
-            line-height: 2;
-            border: 2px solid #fde68a;
-        }
-        .error-analysis {
-            background: #fee2e2;
-            padding: 20px;
-            border-radius: 8px;
-            color: #991b1b;
-            margin-bottom: 20px;
-            font-weight: 500;
-            line-height: 1.8;
-            border: 2px solid #fecaca;
-        }
-        .correct-solution {
-            background: #d1fae5;
-            padding: 20px;
-            border-radius: 8px;
-            line-height: 2.2;
-            font-size: 15px;
-            border: 2px solid #a7f3d0;
-        }
-        
-        /* Practice Paper Styles */
-        .practice-paper {
-            background: white;
-            padding: 30px;
-            margin: 30px 0;
-            border-radius: 12px;
-            box-shadow: 0 4px 20px rgba(0,0,0,0.1);
-            border: 3px solid #7c3aed;
-        }
-        .practice-header {
-            background: linear-gradient(135deg, #7c3aed 0%, #a855f7 100%);
-            color: white;
-            padding: 20px 30px;
-            margin: -30px -30px 25px -30px;
-            border-radius: 9px 9px 0 0;
-        }
-        .practice-title {
-            font-size: 24px;
-            font-weight: 700;
-            margin-bottom: 5px;
-        }
-        .practice-subtitle {
-            font-size: 14px;
-            opacity: 0.9;
-        }
-        .practice-question {
-            padding: 20px 0;
-            border-bottom: 2px solid #f3f4f6;
-        }
-        .practice-question:last-child {
-            border-bottom: none;
-        }
-        .practice-question-number {
-            color: #7c3aed;
-            font-weight: 700;
-            font-size: 18px;
-            margin-bottom: 12px;
-            display: inline-block;
-            background: #ede9fe;
-            padding: 5px 15px;
-            border-radius: 20px;
-        }
-        .practice-question-text {
-            color: #1e293b;
-            font-size: 16px;
-            line-height: 2;
-            padding-left: 10px;
-        }
-        .practice-footer {
-            margin-top: 30px;
-            padding-top: 20px;
-            border-top: 2px solid #e2e8f0;
-            text-align: center;
-            color: #64748b;
-            font-size: 14px;
-            font-weight: 600;
-        }
-        
         .file-upload {
             display: flex;
             gap: 10px;
@@ -291,8 +325,8 @@ HTML_TEMPLATE = '''
             margin: 10px 0;
         }
         .file-tag {
-            background: #667eea;
-            color: white;
+            background: #f3f4f6;
+            color: #374151;
             padding: 8px 15px;
             border-radius: 20px;
             font-size: 13px;
@@ -300,11 +334,15 @@ HTML_TEMPLATE = '''
             align-items: center;
             gap: 8px;
         }
-        .file-tag .remove { cursor: pointer; font-weight: bold; }
+        .file-tag .remove {
+            cursor: pointer;
+            font-weight: bold;
+            color: #ef4444;
+        }
         .input-area {
             padding: 20px 30px;
-            background: white;
-            border-top: 2px solid #e2e8f0;
+            background: #ffffff;
+            border-top: 1px solid #e5e7eb;
             display: flex;
             gap: 10px;
             align-items: center;
@@ -314,27 +352,36 @@ HTML_TEMPLATE = '''
             display: flex;
             gap: 10px;
         }
-        input[type="file"] { display: none; }
+        input[type="file"] {
+            display: none;
+        }
         .upload-btn {
-            background: #f1f5f9;
-            color: #475569;
+            background: #f3f4f6;
+            color: #374151;
             padding: 12px 20px;
-            border-radius: 10px;
+            border-radius: 8px;
             cursor: pointer;
             font-weight: 600;
-            transition: all 0.3s;
-            border: 2px solid #e2e8f0;
+            transition: all 0.2s;
+            border: 1px solid #d1d5db;
         }
-        .upload-btn:hover { background: #e2e8f0; }
+        .upload-btn:hover {
+            background: #e5e7eb;
+        }
         .start-btn {
-            background: #10b981;
+            background: #667eea;
             color: white;
             padding: 12px 30px;
-            border-radius: 10px;
+            border-radius: 8px;
             font-weight: 600;
             font-size: 15px;
+            border: none;
+            cursor: pointer;
+            transition: all 0.2s;
         }
-        .start-btn:hover { background: #059669; }
+        .start-btn:hover {
+            background: #5a6cd4;
+        }
         .start-btn:disabled {
             background: #cbd5e1;
             cursor: not-allowed;
@@ -351,30 +398,196 @@ HTML_TEMPLATE = '''
         @keyframes spin {
             to { transform: rotate(360deg); }
         }
+        .question-dropdown {
+            background: #ffffff;
+            margin: 15px 0;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+            overflow: hidden;
+            border: 1px solid #e5e7eb;
+        }
+        .question-header {
+            background: #f9fafb;
+            color: #1f2937;
+            padding: 15px 20px;
+            cursor: pointer;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            transition: all 0.2s;
+            user-select: none;
+            font-weight: 600;
+        }
+        .question-header:hover {
+            background: #f3f4f6;
+        }
+        .dropdown-arrow {
+            font-size: 18px;
+            transition: transform 0.2s;
+        }
+        .dropdown-arrow.open {
+            transform: rotate(180deg);
+        }
+        .question-content {
+            max-height: 0;
+            overflow: hidden;
+            transition: max-height 0.3s ease-out;
+        }
+        .question-content.open {
+            max-height: 5000px;
+            transition: max-height 0.5s ease-in;
+        }
+        .question-inner {
+            padding: 20px;
+            background: #ffffff;
+        }
+        .question-text {
+            color: #1f2937;
+            font-size: 15px;
+            margin-bottom: 15px;
+            line-height: 1.7;
+            padding: 12px;
+            background: #f9fafb;
+            border-radius: 6px;
+            border-left: 3px solid #667eea;
+        }
+        .section-title {
+            color: #6b7280;
+            font-size: 13px;
+            font-weight: 600;
+            text-transform: uppercase;
+            margin: 15px 0 10px 0;
+            letter-spacing: 0.5px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        .section-title::before {
+            content: '';
+            width: 3px;
+            height: 16px;
+            background: #667eea;
+            border-radius: 2px;
+        }
+        .student-solution {
+            background: #fef3c7;
+            padding: 15px;
+            border-radius: 6px;
+            margin-bottom: 15px;
+            white-space: pre-wrap;
+            line-height: 1.8;
+            border: 1px solid #fde68a;
+            font-size: 14px;
+        }
+        .error-analysis {
+            background: #fee2e2;
+            padding: 15px;
+            border-radius: 6px;
+            color: #991b1b;
+            margin-bottom: 15px;
+            font-weight: 500;
+            line-height: 1.7;
+            border: 1px solid #fecaca;
+            font-size: 14px;
+        }
+        .correct-solution {
+            background: #d1fae5;
+            padding: 15px;
+            border-radius: 6px;
+            line-height: 1.9;
+            font-size: 14px;
+            border: 1px solid #a7f3d0;
+        }
+        .practice-paper {
+            background: #ffffff;
+            padding: 25px;
+            margin: 25px 0;
+            border-radius: 8px;
+            box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
+            border: 1px solid #e5e7eb;
+        }
+        .practice-header {
+            margin-bottom: 20px;
+            padding-bottom: 15px;
+            border-bottom: 1px solid #e5e7eb;
+        }
+        .practice-title {
+            font-size: 18px;
+            font-weight: 700;
+            color: #1f2937;
+            margin-bottom: 5px;
+        }
+        .practice-subtitle {
+            color: #6b7280;
+            font-size: 14px;
+        }
+        .practice-question {
+            padding: 15px 0;
+            border-bottom: 1px solid #f3f4f6;
+        }
+        .practice-question:last-child {
+            border-bottom: none;
+        }
+        .practice-question-number {
+            color: #667eea;
+            font-weight: 700;
+            font-size: 16px;
+            margin-bottom: 10px;
+            display: inline-block;
+        }
+        .practice-question-text {
+            color: #1f2937;
+            font-size: 15px;
+            line-height: 1.8;
+            padding-left: 5px;
+        }
+        .practice-footer {
+            margin-top: 20px;
+            padding-top: 15px;
+            border-top: 1px solid #e5e7eb;
+            text-align: center;
+            color: #6b7280;
+            font-size: 13px;
+            font-weight: 500;
+        }
         .confirm-prompt {
             background: #fef3c7;
-            padding: 20px;
-            border-radius: 12px;
+            padding: 18px;
+            border-radius: 8px;
             margin: 20px 0;
-            border-left: 5px solid #f59e0b;
+            border-left: 4px solid #f59e0b;
         }
         .confirm-buttons {
             display: flex;
             gap: 10px;
-            margin-top: 15px;
+            margin-top: 12px;
         }
         .btn-yes {
             background: #10b981;
             color: white;
+            padding: 8px 16px;
+            border-radius: 6px;
+            font-size: 13px;
+            font-weight: 600;
+            border: none;
+            cursor: pointer;
         }
-        .btn-yes:hover { background: #059669; }
+        .btn-yes:hover {
+            background: #059669;
+        }
         .btn-no {
             background: #ef4444;
             color: white;
+            padding: 8px 16px;
+            border-radius: 6px;
+            font-size: 13px;
+            font-weight: 600;
+            border: none;
+            cursor: pointer;
         }
-        .btn-no:hover { background: #dc2626; }
-        
-        /* Typing cursor */
+        .btn-no:hover {
+            background: #dc2626;
+        }
         .typing-cursor {
             display: inline-block;
             width: 2px;
@@ -387,7 +600,6 @@ HTML_TEMPLATE = '''
             0%, 49% { opacity: 1; }
             50%, 100% { opacity: 0; }
         }
-        
         .MathJax {
             font-size: 1.1em !important;
         }
@@ -400,11 +612,10 @@ HTML_TEMPLATE = '''
 <body>
     <div class="container">
         <div class="header">
-            <h1>📐 Math OCR Analyzer</h1>
-            <div class="header-buttons">
-                <button class="btn btn-questions" onclick="showQuestions()">Questions</button>
-                <button class="btn btn-answers" onclick="showAnswers()">Answers</button>
+            <div>
+                <h1>📐 Math OCR Analysis</h1>
             </div>
+            <div class="welcome-message" id="welcomeMessage"></div>
         </div>
         <div class="chat-area" id="chatArea">
             <div class="message system">
@@ -425,9 +636,10 @@ HTML_TEMPLATE = '''
         </div>
     </div>
     <script>
+        const emailPrefix = localStorage.getItem('userEmailPrefix') || 'User';
+        document.getElementById('welcomeMessage').textContent = `Welcome, ${emailPrefix}!`;
+
         let uploadedFiles = [];
-        let currentView = 'questions';
-        let analysisResult = null;
         let isAnalyzing = false;
 
         document.getElementById('fileInput').addEventListener('change', function(e) {
@@ -478,7 +690,6 @@ HTML_TEMPLATE = '''
         function toggleDropdown(index) {
             const content = document.getElementById(`question-content-${index}`);
             const arrow = document.getElementById(`arrow-${index}`);
-            
             if (content.classList.contains('open')) {
                 content.classList.remove('open');
                 arrow.classList.remove('open');
@@ -491,7 +702,6 @@ HTML_TEMPLATE = '''
         async function typeText(element, text, speed = 5) {
             let i = 0;
             const chunks = text.split(/(\$\$[\s\S]*?\$\$|\$[^\$]+?\$|<br>)/);
-            
             for (const chunk of chunks) {
                 if (chunk.startsWith('$$') || chunk.startsWith('$')) {
                     element.innerHTML += chunk;
@@ -510,7 +720,6 @@ HTML_TEMPLATE = '''
 
         async function startAnalysis() {
             if (uploadedFiles.length === 0 || isAnalyzing) return;
-            
             isAnalyzing = true;
             const chatArea = document.getElementById('chatArea');
             const loadingMsg = document.createElement('div');
@@ -518,29 +727,24 @@ HTML_TEMPLATE = '''
             loadingMsg.innerHTML = '<div class="loading"></div> Analyzing your files...';
             chatArea.appendChild(loadingMsg);
             chatArea.scrollTop = chatArea.scrollHeight;
-
             document.getElementById('startBtn').disabled = true;
 
             const formData = new FormData();
             uploadedFiles.forEach(file => formData.append('files', file));
-            formData.append('view', currentView);
 
             try {
                 const response = await fetch('/analyze', {
                     method: 'POST',
                     body: formData
                 });
-
                 const result = await response.json();
                 loadingMsg.remove();
-
                 if (result.error) {
                     const errorMsg = document.createElement('div');
                     errorMsg.className = 'message system';
                     errorMsg.innerHTML = `<strong>Error:</strong> ${result.error}`;
                     chatArea.appendChild(errorMsg);
                 } else {
-                    analysisResult = result;
                     await displayAnalysisWithTyping(result);
                 }
             } catch (error) {
@@ -550,7 +754,6 @@ HTML_TEMPLATE = '''
                 errorMsg.innerHTML = `<strong>Error:</strong> ${error.message}`;
                 chatArea.appendChild(errorMsg);
             }
-
             chatArea.scrollTop = chatArea.scrollHeight;
             document.getElementById('startBtn').disabled = false;
             isAnalyzing = false;
@@ -558,24 +761,21 @@ HTML_TEMPLATE = '''
 
         async function displayAnalysisWithTyping(result) {
             const chatArea = document.getElementById('chatArea');
-
             for (let i = 0; i < result.questions.length; i++) {
                 const q = result.questions[i];
-                
                 const qBlock = document.createElement('div');
                 qBlock.className = 'question-dropdown';
                 qBlock.innerHTML = `
                     <div class="question-header" onclick="toggleDropdown(${i})">
-                        <div class="question-header-title">
-                            <span>📝</span>
-                            <span>Question ${q.number}</span>
+                        <div>
+                            <span>📝 Question ${q.number}</span>
                         </div>
                         <span class="dropdown-arrow" id="arrow-${i}">▼</span>
                     </div>
                     <div class="question-content" id="question-content-${i}">
                         <div class="question-inner">
                             <div class="question-text" id="q-text-${i}"></div>
-                            <div class="section-title">Student's Solution (Original)</div>
+                            <div class="section-title">Student's Solution</div>
                             <div class="student-solution" id="q-student-${i}"></div>
                             <div class="section-title">Error Analysis</div>
                             <div class="error-analysis" id="q-error-${i}"></div>
@@ -585,27 +785,21 @@ HTML_TEMPLATE = '''
                     </div>
                 `;
                 chatArea.appendChild(qBlock);
-
-                // Open dropdown automatically
                 document.getElementById(`question-content-${i}`).classList.add('open');
                 document.getElementById(`arrow-${i}`).classList.add('open');
-
-                // Type each section
                 await typeText(document.getElementById(`q-text-${i}`), q.question, 3);
                 await typeText(document.getElementById(`q-student-${i}`), q.student_original, 3);
                 await typeText(document.getElementById(`q-error-${i}`), q.error, 3);
                 await typeText(document.getElementById(`q-correct-${i}`), q.correct_solution, 3);
             }
-
-            // Show confirmation prompt
             const confirmMsg = document.createElement('div');
             confirmMsg.className = 'confirm-prompt';
             confirmMsg.innerHTML = `
                 <strong>Analysis Complete!</strong><br>
                 Would you like to generate a practice paper for the questions with mistakes?
                 <div class="confirm-buttons">
-                    <button class="btn btn-yes" onclick="generatePractice()">Yes, Generate</button>
-                    <button class="btn btn-no" onclick="skipPractice()">No, Thanks</button>
+                    <button class="btn-yes" onclick="generatePractice()">Yes, Generate</button>
+                    <button class="btn-no" onclick="skipPractice()">No, Thanks</button>
                 </div>
             `;
             chatArea.appendChild(confirmMsg);
@@ -616,23 +810,19 @@ HTML_TEMPLATE = '''
             const chatArea = document.getElementById('chatArea');
             const confirmPrompt = document.querySelector('.confirm-prompt');
             if (confirmPrompt) confirmPrompt.remove();
-
             const loadingMsg = document.createElement('div');
             loadingMsg.className = 'message system';
             loadingMsg.innerHTML = '<div class="loading"></div> Generating practice paper...';
             chatArea.appendChild(loadingMsg);
-
             try {
                 const response = await fetch('/generate_practice', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ analysis: analysisResult })
+                    body: JSON.stringify({ analysis: result })
                 });
-
-                const result = await response.json();
+                const practiceResult = await response.json();
                 loadingMsg.remove();
-
-                if (result.practice_questions && result.practice_questions.length > 0) {
+                if (practiceResult.practice_questions && practiceResult.practice_questions.length > 0) {
                     const practiceBlock = document.createElement('div');
                     practiceBlock.className = 'practice-paper';
                     practiceBlock.innerHTML = `
@@ -644,10 +834,8 @@ HTML_TEMPLATE = '''
                         <div class="practice-footer">Generated by CAS Educations</div>
                     `;
                     chatArea.appendChild(practiceBlock);
-
                     const container = document.getElementById('practice-questions-container');
-                    
-                    for (const pq of result.practice_questions) {
+                    for (const pq of practiceResult.practice_questions) {
                         const pqDiv = document.createElement('div');
                         pqDiv.className = 'practice-question';
                         pqDiv.innerHTML = `
@@ -655,7 +843,6 @@ HTML_TEMPLATE = '''
                             <div class="practice-question-text" id="practice-q-${pq.number}"></div>
                         `;
                         container.appendChild(pqDiv);
-                        
                         await typeText(document.getElementById(`practice-q-${pq.number}`), pq.question, 3);
                     }
                 } else {
@@ -664,7 +851,6 @@ HTML_TEMPLATE = '''
                     noMistakes.innerHTML = '<strong>Great job!</strong> No mistakes found, so no practice paper needed.';
                     chatArea.appendChild(noMistakes);
                 }
-
                 chatArea.scrollTop = chatArea.scrollHeight;
             } catch (error) {
                 loadingMsg.remove();
@@ -679,45 +865,34 @@ HTML_TEMPLATE = '''
             const confirmPrompt = document.querySelector('.confirm-prompt');
             if (confirmPrompt) confirmPrompt.remove();
         }
-
-        function showQuestions() {
-            currentView = 'questions';
-            document.querySelector('.btn-questions').style.opacity = '1';
-            document.querySelector('.btn-answers').style.opacity = '0.7';
-        }
-
-        function showAnswers() {
-            currentView = 'answers';
-            document.querySelector('.btn-answers').style.opacity = '1';
-            document.querySelector('.btn-questions').style.opacity = '0.7';
-        }
     </script>
 </body>
 </html>
 '''
 
+# ============ ROUTES ============
 @app.route('/')
 def index():
-    return render_template_string(HTML_TEMPLATE)
+    return render_template_string(LOGIN_HTML)
 
-OPENAI_API_KEY = os.getenv('OPENAI_API_KEY')
+@app.route('/main')
+def main():
+    return render_template_string(MAIN_HTML)
 
 @app.route('/analyze', methods=['POST'])
 def analyze():
     try:
-        api_key = OPENAI_API_KEY
+        api_key = os.getenv('OPENAI_API_KEY')
         if not api_key:
-            return jsonify({'error': 'OpenAI API key not configured. Please set the OPENAI_API_KEY environment variable.'})
+            return jsonify({'error': 'OpenAI API key not configured.'})
 
         files = request.files.getlist('files')
-        view = request.form.get('view', 'questions')
-
         if not files:
             return jsonify({'error': 'No files uploaded'})
 
         client = OpenAI(api_key=api_key)
-
         file_contents = []
+
         for file in files:
             if file.filename.lower().endswith(('.png', '.jpg', '.jpeg', '.gif', '.bmp')):
                 encoded = base64.b64encode(file.read()).decode('utf-8')
@@ -731,44 +906,29 @@ def analyze():
                     "text": f"[PDF file: {file.filename} - Content extraction not implemented in this demo]"
                 })
 
-        prompt = f"""Extract and analyze math problems from the uploaded {"questions" if view == "questions" else "answers"}.
+        prompt = """
+        Extract and analyze math problems from the uploaded files.
 
-CRITICAL INSTRUCTIONS:
-1. Use the EXACT question numbers from the images (e.g., if image shows "Q.7", use "7" as the number)
-2. Format ALL mathematical expressions using LaTeX with $ for inline math and $$ for display math
-3. For student_original: Extract VERBATIM what the student wrote, but format math with LaTeX
-4. Only flag REAL errors - mistakes include:
-   - Questions left blank/unanswered
-   - Partially correct solutions
-   - Completely incorrect solutions
-   - Mathematical errors in calculations or reasoning
-5. If solution is fully correct, set error to "No error - solution is correct"
+        CRITICAL INSTRUCTIONS:
+        1. Use the EXACT question numbers from the images (e.g., if image shows "Q.7", use "7" as the number)
+        2. Format ALL mathematical expressions using LaTeX with $ for inline math and $$ for display math
+        3. For student_original: Extract VERBATIM what the student wrote, but format math with LaTeX
+        4. Only flag REAL errors - mistakes include:
+           - Questions left blank/unanswered
+           - Partially correct solutions
+           - Completely incorrect solutions
+           - Mathematical errors in calculations or reasoning
+        5. If solution is fully correct, set error to "No error - solution is correct"
 
-Return a JSON array with this exact structure:
-[{{
-  "number": "exact_question_number_from_image",
-  "question": "question text with $LaTeX$ formatting",
-  "student_original": "Student's work VERBATIM with ALL math wrapped in $LaTeX$",
-  "error": "Detailed error description with $LaTeX$ if needed, or 'No error - solution is correct'",
-  "correct_solution": "Complete step-by-step solution with $LaTeX$ formatting. Each step on a new line separated by <br>"
-}}]
-
-LaTeX Examples:
-- Fractions: $\\frac{{a}}{{b}}$ or $\\dfrac{{a}}{{b}}$
-- Integrals: $\\int f(x)\\,dx$ or $\\displaystyle\\int f(x)\\,dx$
-- Square roots: $\\sqrt{{x}}$ or $\\sqrt[n]{{x}}$
-- Exponents: $x^2$ or $x^{{2n}}$
-- Trigonometry: $\\sin x$, $\\cos x$, $\\tan x$, $\\sec x$
-- Greek letters: $\\pi$, $\\theta$, $\\alpha$
-- Inverse trig: $\\sin^{{-1}} x$ or $\\arcsin x$
-- Limits: $\\lim_{{x\\to 0}}$
-
-Rules:
-- Use EXACT question numbers from the images
-- student_original must be VERBATIM
-- Flag blank/partial/incorrect solutions as errors
-- In correct_solution, use <br> between steps
-- Each step should be complete"""
+        Return a JSON array with this exact structure:
+        [{
+          "number": "exact_question_number_from_image",
+          "question": "question text with $LaTeX$ formatting",
+          "student_original": "Student's work VERBATIM with ALL math wrapped in $LaTeX$",
+          "error": "Detailed error description with $LaTeX$ if needed, or 'No error - solution is correct'",
+          "correct_solution": "Complete step-by-step solution with $LaTeX$ formatting. Each step on a new line separated by <br>"
+        }]
+        """
 
         response = client.chat.completions.create(
             model="gpt-5.1",
@@ -781,7 +941,6 @@ Rules:
         )
 
         result_text = response.choices[0].message.content.strip()
-
         if result_text.startswith('```json'):
             result_text = result_text[7:]
         if result_text.endswith('```'):
@@ -789,7 +948,6 @@ Rules:
         result_text = result_text.strip()
 
         questions = json.loads(result_text)
-
         return jsonify({'questions': questions})
 
     except Exception as e:
@@ -798,40 +956,33 @@ Rules:
 @app.route('/generate_practice', methods=['POST'])
 def generate_practice():
     try:
-        api_key = OPENAI_API_KEY
+        api_key = os.getenv('OPENAI_API_KEY')
         if not api_key:
-            return jsonify({'error': 'OpenAI API key not configured. Please set the OPENAI_API_KEY environment variable.'})
+            return jsonify({'error': 'OpenAI API key not configured.'})
 
         data = request.json
         analysis = data.get('analysis', {})
         questions = analysis.get('questions', [])
 
-        # Filter questions with real errors (blank, partial, or incorrect)
         error_questions = [q for q in questions if 'no error' not in q.get('error', '').lower()]
-
         if not error_questions:
             return jsonify({'practice_questions': []})
 
         client = OpenAI(api_key=api_key)
+        prompt = f"""
+        Generate practice questions for these problems where students made mistakes:
 
-        prompt = f"""Generate practice questions for these problems where students made mistakes:
+        {json.dumps(error_questions, indent=2)}
 
-{json.dumps(error_questions, indent=2)}
+        CRITICAL INSTRUCTIONS:
+        1. Use the EXACT SAME question numbers as the original questions
+        2. Create MODIFIED versions of the questions (not identical, but similar concept)
+        3. Target the specific errors or concepts the student struggled with
+        4. Format ALL math using LaTeX: $x^2$, $\\frac{{a}}{{b}}$, $\\int$, etc.
 
-CRITICAL INSTRUCTIONS:
-1. Use the EXACT SAME question numbers as the original questions
-2. Create MODIFIED versions of the questions (not identical, but similar concept)
-3. Target the specific errors or concepts the student struggled with
-4. Format ALL math using LaTeX: $x^2$, $\\frac{{a}}{{b}}$, $\\int$, etc.
-
-Return a JSON array with this structure:
-[{{"number": "exact_original_question_number", "question": "modified question with $LaTeX$ formatting targeting same concept"}}]
-
-Rules:
-- Use EXACT question numbers from originals (e.g., if original was "7", use "7")
-- Questions should be DIFFERENT but test the SAME concept
-- Use proper LaTeX formatting
-- Target the specific error/weakness shown"""
+        Return a JSON array with this structure:
+        [{"number": "exact_original_question_number", "question": "modified question with $LaTeX$ formatting targeting same concept"}]
+        """
 
         response = client.chat.completions.create(
             model="gpt-5.1",
@@ -841,7 +992,6 @@ Rules:
         )
 
         result_text = response.choices[0].message.content.strip()
-
         if result_text.startswith('```json'):
             result_text = result_text[7:]
         if result_text.endswith('```'):
@@ -849,7 +999,6 @@ Rules:
         result_text = result_text.strip()
 
         practice_questions = json.loads(result_text)
-
         return jsonify({'practice_questions': practice_questions})
 
     except Exception as e:
@@ -859,7 +1008,7 @@ if __name__ == '__main__':
     print("\n" + "=" * 60)
     print("🚀 Math OCR Analyzer Starting...")
     print("=" * 60)
-    if not OPENAI_API_KEY:
+    if not os.getenv('OPENAI_API_KEY'):
         print("\n⚠️  WARNING: OpenAI API key not found!")
         print("   Please set the OPENAI_API_KEY environment variable.\n")
     else:
