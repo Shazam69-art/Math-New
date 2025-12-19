@@ -1161,8 +1161,8 @@ def handle_login():
         
         # 2. Save to JSON file
         def save_login():
-    try:
-        # Capture request data BEFORE thread starts
+            try:
+        # CAPTURE REQUEST DATA HERE (before thread)
         ip_address = request.remote_addr or 'Unknown'
         user_agent = request.headers.get('User-Agent', 'Unknown')[:100]
         current_time = datetime.utcnow().isoformat()
